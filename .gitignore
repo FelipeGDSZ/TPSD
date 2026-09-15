@@ -1,0 +1,12 @@
+# Ambientes Virtuais
+venv/
+env/
+
+# Arquivos temporários do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Resultados de benchmark repetitivos (opcional, mas recomendado)
+benchmark_results.json

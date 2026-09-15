@@ -1,0 +1,87 @@
+# docker-stack.yml (Versão NATS)
+# ─────────────────────────────────────────────────────────────────────
+# Arquivo de deploy para Docker SWARM.
+#
+# Como usar:
+#   1. Ativar o Swarm:   docker swarm init
+#   2. Fazer o deploy:   docker stack deploy -c docker-stack.yml tp01
+#   3. Ver os serviços:  docker service ls
+#   4. Remover tudo:     docker stack rm tp01
+
+version: '3.8'
+
+services:
+
+  # ── Nó 1 do NATS (O "Seed" do cluster) ───────────────────────────
+  nats1:
+    image: nats:latest
+    hostname: nats1
+    # No Swarm, passamos os comandos direto para o container iniciar o cluster
+    command: >
+      --name nats1
+      --cluster_name TP01_CLUSTER
+      --cluster nats://0.0.0.0:6222
+      --http_port 8222
+    ports:
+      - "4222:4222"    # Conexão dos clientes Python
+      - "8222:8222"    # Painel de monitoramento
+    networks:
+      - nats_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+      placement:
+        constraints:
+          - node.role == manager     # Garante que o nó 1 fica na máquina manager
+
+  # ── Nó 2 do NATS ─────────────────────────────────────────────────
+  nats2:
+    image: nats:latest
+    hostname: nats2
+    command: >
+      --name nats2
+      --cluster_name TP01_CLUSTER
+      --cluster nats://0.0.0.0:6222
+      --routes nats://nats1:6222
+      --http_port 8222
+    ports:
+      - "4223:4222"
+      - "8223:8222"
+    networks:
+      - nats_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+
+  # ── Nó 3 do NATS ─────────────────────────────────────────────────
+  nats3:
+    image: nats:latest
+    hostname: nats3
+    command: >
+      --name nats3
+      --cluster_name TP01_CLUSTER
+      --cluster nats://0.0.0.0:6222
+      --routes nats://nats1:6222
+      --http_port 8222
+    ports:
+      - "4224:4222"
+      - "8224:8222"
+    networks:
+      - nats_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+
+networks:
+  nats_net:
+    driver: overlay      # Essencial no Swarm para conectar containers em máquinas diferentes
+    attachable: true     # Permite que os seus scripts Python locais se conectem à rede virtual

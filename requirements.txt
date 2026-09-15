@@ -1,0 +1,7 @@
+# Dependências do projeto TP01
+# Instale com: pip install -r requirements.txt
+
+pika       # biblioteca para conectar ao RabbitMQ via protocolo AMQP
+flask      # framework web para servir o dashboard de monitoramento
+requests   # para consultar a API REST de gerenciamento do RabbitMQ
+matplotlib # para gerar gráficos de benchmark em PNG
