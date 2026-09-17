@@ -43,10 +43,10 @@ async def processar_estoque(msg):
         # Fundamental usar asyncio.sleep para não bloquear o loop de eventos
         await asyncio.sleep(random.uniform(0.01, 0.03))
 
-        print(f"  [ESTOQUE] ✅ Reservado | {order_id} | {quantity}x {product_id} | Cliente {customer_id}")
+        print(f"  [ESTOQUE]  Reservado | {order_id} | {quantity}x {product_id} | Cliente {customer_id}")
 
     except Exception as e:
-        print(f"  [ESTOQUE] ❌ Erro ao processar mensagem: {e}")
+        print(f"  [ESTOQUE]  Erro ao processar mensagem: {e}")
 
 
 async def main():

@@ -45,7 +45,7 @@ async def processar_pagamento(msg):
         # a thread principal do event loop quando várias mensagens chegarem juntas.
         await asyncio.sleep(random.uniform(0.005, 0.05))
 
-        print(f"  [PAGAMENTO] ✅ Aprovado | {order_id} | R$ {amount:.2f} | Cliente {customer_id}")
+        print(f"  [PAGAMENTO]  Aprovado | {order_id} | R$ {amount:.2f} | Cliente {customer_id}")
         
         # Nota sobre ACKs:
         # O NATS Core (padrão) é "fire-and-forget", ou seja, se a conexão cair, 
@@ -54,7 +54,7 @@ async def processar_pagamento(msg):
         # adicionaríamos 'await msg.ack()' aqui.
 
     except Exception as e:
-        print(f"  [PAGAMENTO] ❌ Erro ao processar mensagem: {e}")
+        print(f"  [PAGAMENTO]  Erro ao processar mensagem: {e}")
 
 
 async def main():

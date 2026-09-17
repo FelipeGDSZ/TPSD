@@ -45,10 +45,10 @@ async def processar_notificacao(msg):
         await asyncio.sleep(random.uniform(0.002, 0.02))
 
         canal = random.choice(CANAIS)
-        print(f"  [NOTIFICAÇÃO] ✅ {canal.upper()} enviado | {order_id} | Cliente {customer_id}")
+        print(f"  [NOTIFICAÇÃO] {canal.upper()} enviado | {order_id} | Cliente {customer_id}")
 
     except Exception as e:
-        print(f"  [NOTIFICAÇÃO] ❌ Erro ao processar mensagem: {e}")
+        print(f"  [NOTIFICAÇÃO]  Erro ao processar mensagem: {e}")
 
 
 async def main():
