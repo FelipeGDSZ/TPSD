@@ -29,9 +29,9 @@ async def main():
     
     for produto in produtos_para_testar:
         if produto == "":
-            print("[RPC CLIENT] 🛒 Teste de Resiliência: Enviando requisição sem product_id...")
+            print("[RPC CLIENT] Teste de Resiliência: Enviando requisição sem product_id...")
         else:
-            print(f"[RPC CLIENT] 🛒 Perguntando ao estoque se tem '{produto}'...")
+            print(f"[RPC CLIENT] Perguntando ao estoque se tem '{produto}'...")
             
         pedido = {"product_id": produto}
         
