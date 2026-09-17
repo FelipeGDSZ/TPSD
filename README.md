@@ -1,6 +1,6 @@
 # TP1 Sistemas Distribuídos - NATS Core Migration
 
-Este repositório contém o Trabalho Prático 1 da disciplina de Sistemas Distribuídos (Ciência da Computação - UFOP). O projeto original utilizava RabbitMQ, mas foi totalmente migrado para **NATS Core**, demonstrando um ganho massivo de performance, baixa latência e arquitetura *Fire-and-Forget*.
+Este repositório contém o Trabalho Prático 1 da disciplina de Sistemas Distribuídos (Ciência da Computação - UFOP).
 
 ## Arquitetura do Projeto
 * **Producer (`producer.py`):** Gera pedidos fictícios assincronamente e publica no NATS.
