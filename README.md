@@ -21,19 +21,33 @@ Este repositório contém o Trabalho Prático 1 da disciplina de Sistemas Distri
    
 2. Crie e ative o ambiente visual:
 
-python3 -m venv venv
-source venv/bin/activate  # No Windows use: venv\Scripts\activate
+   python3 -m venv venv
+
+   source venv/bin/activate
+
+   No Windows use: venv\Scripts\activate
 
 3. Inicie o monitoramento:
 
-python dashboard.py
+   python dashboard.py
 
 4. Acesse http://localhost:5000 no seu navegador.
 
 5. Inicie os Workers (Abra terminais separados e ative o venv em todos):
 
-python consumer_payment.py
-python consumer_stock.py
-python consumer_notification.py
+   python consumer_payment.py
 
+   python consumer_stock.py
+
+   python consumer_notification.py
+
+   Disparo de Carga (Producer): python producer.py --total 10000
+
+6. Execute o Case RPC
+
+   Mantenha o NATS rodando, abra dois novos terminais (com o venv ativo) e observe a comunicação síncrona:
+
+   Servidor de Estoque: python rpc_server.py
+
+   Cliente de Consulta: python rpc_client.py
 
