@@ -1,5 +1,5 @@
 """
-consumer_stock.py (Versão NATS)
+consumer_stock.py 
 -------------------------------
 CONSUMIDOR DE ESTOQUE
 
@@ -40,7 +40,7 @@ async def processar_estoque(msg):
         quantity    = pedido.get("quantity", 1)
 
         # Simula o tempo de consulta ao sistema de estoque (10–30ms)
-        # Fundamental usar asyncio.sleep para não bloquear o loop de eventos
+        # Fundamental usar asyncio.sleep para não bloquear o loop de eventos.
         await asyncio.sleep(random.uniform(0.01, 0.03))
 
         print(f"  [ESTOQUE]  Reservado | {order_id} | {quantity}x {product_id} | Cliente {customer_id}")

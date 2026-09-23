@@ -1,5 +1,5 @@
 """
-consumer_notification.py (Versão NATS)
+consumer_notification.py
 --------------------------------------
 CONSUMIDOR DE NOTIFICAÇÕES
 

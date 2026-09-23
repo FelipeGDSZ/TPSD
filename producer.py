@@ -63,7 +63,7 @@ async def executar(total: int, intervalo_log: int = 1000, target_routing_key: st
         corpo = json.dumps(pedido).encode("utf-8")
 
         try:
-            # Publica a mensagem no subject especificado
+            # Publica a mensagem no subject especificado.
             await nc.publish(subject, corpo)
             
             # Pausa assíncrona (não bloqueia a thread) para a animação

@@ -1,5 +1,5 @@
 """
-benchmark.py (Versão NATS)
+benchmark.py
 --------------------------
 Script para testar o limite de vazão (Throughput) do NATS.
 """

@@ -97,5 +97,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        # Captura o Ctrl+C para encerrar sem cuspir erros feios no terminal
+        # Captura o Ctrl+C para encerrar sem cuspir erros no terminal
         pass

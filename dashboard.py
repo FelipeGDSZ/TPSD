@@ -1,5 +1,5 @@
 """
-dashboard.py (Versão NATS)
+dashboard.py
 --------------------------
 PAINEL DE MONITORAMENTO
 
@@ -158,7 +158,6 @@ def api_produce():
 @app.route("/api/consume", methods=["POST"])
 def api_consume():
     """
-    No RabbitMQ, tínhamos um botão para consumir as mensagens represadas na fila.
     No NATS Core, não existe represamento. O consumo manual não se aplica da mesma forma.
     """
     return jsonify({

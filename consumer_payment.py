@@ -1,11 +1,11 @@
 """
-consumer_payment.py (Versão NATS - Revisada)
+consumer_payment.py 
 --------------------------------------------
 CONSUMIDOR DE PAGAMENTO
 
 Este script fica "escutando" o subject 'order.payment.*' esperando pedidos chegarem.
-No NATS, usamos 'Queue Groups' para simular o comportamento de uma fila do RabbitMQ.
-Isso garante que se você rodar 5 instâncias deste script, a mensagem será 
+No NATS, usamos 'Queue Groups'.
+Isso garante que se rodar 5 instâncias deste script, a mensagem será 
 entregue para apenas UM deles por vez (balanceamento de carga/round-robin).
 
 Como funciona:
@@ -31,7 +31,6 @@ QUEUE_GROUP = "orders.payment"
 async def processar_pagamento(msg):
     """
     Callback assíncrona chamada automaticamente pelo NATS a cada mensagem.
-    Substitui a lógica de ch.basic_consume do RabbitMQ.
     """
     try:
         pedido = json.loads(msg.data.decode("utf-8"))
@@ -50,8 +49,7 @@ async def processar_pagamento(msg):
         # Nota sobre ACKs:
         # O NATS Core (padrão) é "fire-and-forget", ou seja, se a conexão cair, 
         # a mensagem é perdida e não há confirmação manual (msg.ack()).
-        # Se usarmos o NATS JetStream (para ter persistência e DLQ como no RabbitMQ),
-        # adicionaríamos 'await msg.ack()' aqui.
+        # Se usarmos o NATS JetStream adicionaríamos 'await msg.ack()' aqui.
 
     except Exception as e:
         print(f"  [PAGAMENTO]  Erro ao processar mensagem: {e}")

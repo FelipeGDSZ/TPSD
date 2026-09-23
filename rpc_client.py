@@ -57,7 +57,7 @@ async def main():
             print(f"   ERRO DE COMUNICAÇÃO: {e}")
         
         print("-" * 60)
-        await asyncio.sleep(2) # Pausa para facilitar a leitura no terminal
+        await asyncio.sleep(2) # Pausa para facilitar a leitura no terminal.
 
     print("\n[RPC CLIENT] Testes finalizados. Encerrando conexão...")
     await nc.drain()
