@@ -1,9 +1,9 @@
-# docker-compose.yml (Versão NATS)
+# docker-compose.yml 
 # ─────────────────────────────────────────────────────────────────────
 
 services:
 
-  # ── Nó 1 do NATS (Nó Semente / Seed) ─────────────────────────────
+  # ── Nó 1 do NATS (Nó Semente / Seed.) ─────────────────────────────
   nats1:
     image: nats:latest
     hostname: nats1

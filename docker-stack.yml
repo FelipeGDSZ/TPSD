@@ -1,6 +1,6 @@
-# docker-stack.yml (Versão NATS)
+# docker-stack.yml
 # ─────────────────────────────────────────────────────────────────────
-# Arquivo de deploy para Docker SWARM.
+# Arquivo de deploy para Docker SWARM!
 #
 # Como usar:
 #   1. Ativar o Swarm:   docker swarm init

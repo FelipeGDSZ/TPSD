@@ -1,4 +1,4 @@
-# TP1 Sistemas Distribuídos - NATS Core Migration
+# TP1 Sistemas Distribuídos - NATS
 
 Este repositório contém o Trabalho Prático 1 da disciplina de Sistemas Distribuídos (Ciência da Computação - UFOP).
 
