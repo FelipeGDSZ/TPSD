@@ -8,5 +8,5 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Resultados de benchmark repetitivos (opcional, mas recomendado)
+# Resultados de benchmark repetitivos.
 benchmark_results.json
