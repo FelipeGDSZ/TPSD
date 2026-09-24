@@ -1,5 +1,5 @@
 """
-rpc_client.py (Revisado)
+rpc_client.py
 ------------------------
 Faz consultas diretas (Request-Reply) ao microsserviço de estoque 
 e espera a resposta para tomar uma decisão.
@@ -9,7 +9,6 @@ import asyncio
 import json
 from nats.aio.client import Client as NATS
 
-# ── Configurações ──────────────────────────────────────────────────
 NATS_URL = "nats://localhost:4222"
 
 async def main():
@@ -24,7 +23,6 @@ async def main():
 
     print("[RPC CLIENT]  Conectado. Iniciando bateria de consultas...\n")
     
-    # Lista de produtos (o último é um teste de erro para acionar a validação do servidor)
     produtos_para_testar = ["notebook", "tablet", "mouse", ""]
     
     for produto in produtos_para_testar:
@@ -36,13 +34,11 @@ async def main():
         pedido = {"product_id": produto}
         
         try:
-            # O timeout previne que o cliente fique travado se o servidor estiver offline
-            resposta_bruta = await nc.request("inventory.check", json.dumps(pedido).encode("utf-8"), timeout=2.0)
+            # Atualizado para disparar a requisição no subject em português
+            resposta_bruta = await nc.request("consulta_estoque", json.dumps(pedido).encode("utf-8"), timeout=2.0)
             
-            # Decodifica o JSON que o servidor devolveu
             resposta = json.loads(resposta_bruta.data.decode("utf-8"))
             
-            # Verifica o status da resposta antes de tentar ler o estoque
             if resposta.get("status") == "failed":
                 print(f"  ERRO RETORNADO PELO SERVIDOR: {resposta.get('error')}")
             else:
@@ -57,7 +53,7 @@ async def main():
             print(f"   ERRO DE COMUNICAÇÃO: {e}")
         
         print("-" * 60)
-        await asyncio.sleep(2) # Pausa para facilitar a leitura no terminal.
+        await asyncio.sleep(2)
 
     print("\n[RPC CLIENT] Testes finalizados. Encerrando conexão...")
     await nc.drain()
