@@ -1,4 +1,4 @@
-# docker-compose.yml (Versão NATS)
+# docker-compose.yml (Versão NATS Core)
 # ─────────────────────────────────────────────────────────────────────
 
 services:
@@ -8,15 +8,14 @@ services:
     image: nats:latest
     hostname: nats1
     container_name: nats1
-    # Passamos os argumentos direto para o binário do nats-server
     command: >
       --name nats1
       --cluster_name TP01_CLUSTER
       --cluster nats://0.0.0.0:6222
       --http_port 8222
     ports:
-      - "4222:4222"    # Porta dos clientes (onde os scripts Python se conectam)
-      - "8222:8222"    # API HTTP de monitoramento (usada pelo dashboard)
+      - "4222:4222"    # Porta dos clientes
+      - "8222:8222"    # API HTTP de monitoramento
     networks:
       - nats_net
 

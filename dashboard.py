@@ -132,11 +132,12 @@ def executar_produtor_background(count, subject):
 def api_produce():
     try:
         data = request.json
-        count = int(data.get("count", 0))
+        count = int(data.get("count", 1))
         queue = data.get("queue", "orders.payment")
         
-        if count != 1:
-            return jsonify({"error": "Para a apresentação, envie apenas 1 mensagem por vez."}), 400
+        # Validação básica
+        if count < 1 or count > 1000:
+            return jsonify({"error": "Quantidade deve estar entre 1 e 1000"}), 400
             
         # Mapeamento da fila abstrata do front para o subject do NATS
         subject = None
@@ -150,7 +151,7 @@ def api_produce():
         # Roda o script producer (que agora é async) em uma thread background
         threading.Thread(target=executar_produtor_background, args=(count, subject)).start()
         
-        return jsonify({"status": "success", "message": f"Produzindo {count} mensagem..."})
+        return jsonify({"status": "success", "message": f"Produzindo {count} mensagem(ns)..."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

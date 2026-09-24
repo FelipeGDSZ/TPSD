@@ -3,305 +3,484 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NATS Topology Map</title>
+    <title>Dashboard NATS - TP01</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { background-color: #ffffff; color: #1e293b; font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; }
-        header { padding: 1rem 2rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background-color: #f8fafc; }
-        .main-container { display: flex; flex: 1; overflow: hidden; }
-        .sidebar { width: 280px; border-right: 2px solid #1e293b; display: flex; flex-direction: column; background: #f8fafc; overflow-y: auto; flex-shrink: 0; }
-        .legend-container { padding: 1.5rem 0; display: flex; flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #e2e8f0; background: #ffffff; }
-        .interactive-panel { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
-        .network-container { flex: 1; position: relative; background-color: #ffffff; }
-        #network { width: 100%; height: 100%; }
-        
-        /* Legend Shapes */
-        .legend-item { display: flex; flex-direction: column; align-items: center; font-size: 0.8rem; font-weight: 600; color: #0f172a; gap: 0.5rem; text-align: center; }
-        .shape-nats { width: 22px; height: 22px; background-color: #3b82f6; border: 2px solid #1d4ed8; transform: rotate(45deg); margin-bottom: 4px; }
-        .shape-queue { width: 32px; height: 20px; background-color: #7dd3fc; border: 2px solid #0284c7; border-radius: 3px; }
-        .shape-producer { width: 26px; height: 26px; border-radius: 50%; background-color: #5eead4; border: 2px solid #0f766e; }
-        .shape-consumer { 
-            width: 28px; height: 28px; background-color: #fde047; border: 2px solid #854d0e; 
-            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #0f172a;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            padding: 1.5rem;
+            color: #e2e8f0;
         }
-        
-        @media (max-width: 768px) {
-            .main-container { flex-direction: column-reverse; overflow-y: auto; }
-            .sidebar { width: 100%; border-right: none; border-top: 2px solid #1e293b; overflow-y: visible; }
-            .network-container { height: 350px; flex: none; }
-            header { flex-direction: column; gap: 0.5rem; text-align: center; }
-            #network { height: 350px; }
+        .container { max-width: 1600px; margin: 0 auto; }
+        .card { 
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px; 
+            padding: 1.5rem; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            margin-bottom: 1.5rem;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
+        }
+        .metric-value { 
+            font-size: 2.5rem; 
+            font-weight: 700; 
+            margin: 0.5rem 0;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .metric-label { 
+            font-size: 0.875rem; 
+            opacity: 0.95; 
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-dot { 
+            width: 12px; 
+            height: 12px; 
+            border-radius: 50%; 
+            display: inline-block;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+        .status-online { 
+            background: #10b981;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+        .status-offline { 
+            background: #ef4444;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+        .btn {
+            padding: 0.875rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s;
+            width: 100%;
+            font-size: 0.95rem;
+        }
+        .btn-primary { 
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
+        }
+        .btn-primary:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px -1px rgba(59, 130, 246, 0.5);
+        }
+        .btn-success { 
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);
+        }
+        .btn-success:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px -1px rgba(16, 185, 129, 0.5);
+        }
+        .input-field {
+            width: 100%;
+            padding: 0.875rem;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+            background: #0f172a;
+            color: #e2e8f0;
+            transition: border-color 0.3s;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        .worker-badge {
+            display: inline-block;
+            padding: 0.4rem 0.9rem;
+            background: #fbbf24;
+            color: #1e293b;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin: 0.25rem;
+            box-shadow: 0 2px 4px rgba(251, 191, 36, 0.3);
+        }
+        .subject-card {
+            background: #334155;
+            padding: 1.25rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #3b82f6;
+        }
+        .subject-title {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: #60a5fa;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        h1 { 
+            font-size: 2.25rem; 
+            font-weight: 800; 
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        h2 { 
+            font-size: 1.5rem; 
+            font-weight: 700; 
+            color: #e2e8f0; 
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        h3 { 
+            font-size: 1.125rem; 
+            font-weight: 600; 
+            color: #cbd5e1; 
+            margin-bottom: 0.75rem;
+        }
+        .info-box {
+            background: #1e293b;
+            border: 1px solid #3b82f6;
+            border-left: 4px solid #3b82f6;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+            color: #cbd5e1;
+        }
+        .log-entry {
+            padding: 0.5rem;
+            border-bottom: 1px solid #334155;
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        .log-entry:hover {
+            background: #1e293b;
+        }
+        @media (max-width: 1024px) {
+            .grid-2 { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-    <header>
-        <div>
-            <h1 class="text-2xl font-bold text-slate-800">Mapa Topológico NATS</h1>
-            <p class="text-sm text-slate-500 font-medium">Monitoramento em Tempo Real do TP01</p>
-        </div>
-        <div id="status-indicator" class="flex items-center text-sm font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
-            <span class="relative flex h-2 w-2 mr-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            Conectado
-        </div>
-    </header>
-
-    <div class="main-container">
-        <!-- Barra Lateral -->
-        <div class="sidebar">
-            <div class="legend-container">
-                <div class="legend-item"><div class="shape-producer"></div><span>producer</span></div>
-                <div class="legend-item"><div class="shape-nats"></div><span>NATS</span></div>
-                <div class="legend-item"><div class="shape-queue"></div><span>queue group</span></div>
-                <div class="legend-item"><div class="shape-consumer"></div><span>worker</span></div>
-            </div>
-            
-            <div class="interactive-panel">
-                <h2 class="text-lg font-bold text-slate-800 border-b border-slate-300 pb-2">Painel Interativo</h2>
-                
-                <!-- Produzir -->
-                <div class="bg-white p-3 rounded shadow-sm border border-slate-200">
-                    <h3 class="text-sm font-semibold text-emerald-700 mb-2 flex justify-between">
-                        <span>📤 Produzir Mensagens</span>
-                    </h3>
-                    <div class="flex flex-col gap-2">
-                        <label class="text-xs text-slate-600 font-medium">Subject Destino</label>
-                        <select id="prod-queue" class="border rounded p-1 text-sm outline-none focus:border-emerald-500 bg-white">
-                            <option value="orders.payment">Pagamento</option>
-                            <option value="orders.stock">Estoque</option>
-                            <option value="orders.notification">Notificação</option>
-                        </select>
-                        <button onclick="sendProduce()" class="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-1.5 rounded transition">Enviar 1 Mensagem</button>
-                    </div>
+    <div class="container">
+        <!-- Header -->
+        <div class="card-header">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h1>🚀 Dashboard NATS Core - TP01</h1>
+                    <p style="opacity: 0.9; font-size: 1.05rem;">Sistemas Distribuídos | Monitoramento em Tempo Real</p>
                 </div>
-
-                <!-- Consumir -->
-                <div class="bg-white p-3 rounded shadow-sm border border-slate-200">
-                    <h3 class="text-sm font-semibold text-amber-700 mb-2">📥 Consumir Mensagens</h3>
-                    <div class="flex flex-col gap-2">
-                        <p class="text-xs text-slate-500 leading-relaxed mb-1">
-                            O NATS Core utiliza arquitetura <b>Push</b> em tempo real. Não há retenção de filas.
-                        </p>
-                        <button onclick="sendConsume()" class="mt-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold py-1.5 rounded transition">Info de Consumo</button>
+                <div style="text-align: right;">
+                    <div id="status-indicator" style="background: rgba(0,0,0,0.3); padding: 0.875rem 1.5rem; border-radius: 10px; font-weight: 600; backdrop-filter: blur(10px);">
+                        <span class="status-dot status-online"></span>
+                        <span id="status-text">Conectado</span>
+                    </div>
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem; opacity: 0.9;">
+                        Modo: NATS Core (Fire-and-forget)
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Área Principal: Gráfico de Rede -->
-        <div class="network-container">
-            <div id="network"></div>
+        <!-- Métricas Principais -->
+        <div class="grid-3" style="margin-bottom: 1.5rem;">
+            <div class="metric-card">
+                <div class="metric-label">📤 Publicadas/s</div>
+                <div class="metric-value" id="publish-rate">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">📥 Entregues/s</div>
+                <div class="metric-value" id="deliver-rate">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">👷 Workers Ativos</div>
+                <div class="metric-value" id="total-consumers">0</div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <!-- Coluna Esquerda -->
+            <div>
+                <!-- Subjects e Workers -->
+                <div class="card">
+                    <h2>📮 Subjects & Workers</h2>
+                    
+                    <div class="subject-card">
+                        <div class="subject-title">💳 orders.payment</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div id="payment-workers">
+                                <span style="color: #64748b;">Aguardando workers...</span>
+                            </div>
+                            <span style="font-size: 1.75rem; font-weight: 700; color: #60a5fa;" id="payment-count">0</span>
+                        </div>
+                    </div>
+
+                    <div class="subject-card">
+                        <div class="subject-title">📦 orders.stock</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div id="stock-workers">
+                                <span style="color: #64748b;">Aguardando workers...</span>
+                            </div>
+                            <span style="font-size: 1.75rem; font-weight: 700; color: #60a5fa;" id="stock-count">0</span>
+                        </div>
+                    </div>
+
+                    <div class="subject-card">
+                        <div class="subject-title">📧 orders.notification</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div id="notification-workers">
+                                <span style="color: #64748b;">Aguardando workers...</span>
+                            </div>
+                            <span style="font-size: 1.75rem; font-weight: 700; color: #60a5fa;" id="notification-count">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráfico de Throughput -->
+                <div class="card">
+                    <h2>📈 Gráfico de Throughput</h2>
+                    <canvas id="throughputChart" style="max-height: 250px;"></canvas>
+                </div>
+            </div>
+
+            <!-- Coluna Direita -->
+            <div>
+                <!-- Painel de Controle -->
+                <div class="card">
+                    <h2>🎮 Painel de Controle</h2>
+                    
+                    <h3>📤 Produzir Mensagens</h3>
+                    <select id="prod-subject" class="input-field">
+                        <option value="orders.payment">💳 Pagamento</option>
+                        <option value="orders.stock">📦 Estoque</option>
+                        <option value="orders.notification">📧 Notificação</option>
+                    </select>
+                    
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem;">
+                        <input type="number" id="msg-count" class="input-field" value="10" min="1" max="1000" placeholder="Quantidade">
+                        <button class="btn btn-success" onclick="produceMessages()">Enviar</button>
+                    </div>
+
+                    <div class="info-box">
+                        <strong>💡 Dica:</strong> Inicie os consumers antes de produzir mensagens. No NATS Core, mensagens sem subscribers são perdidas.
+                    </div>
+                </div>
+
+                <!-- Status do Sistema -->
+                <div class="card">
+                    <h2>⚙️ Status do Sistema</h2>
+                    
+                    <div style="padding: 1rem; background: #334155; border-radius: 8px; margin-bottom: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 700; color: #e2e8f0; margin-bottom: 0.25rem;">Cluster NATS</div>
+                                <div style="font-size: 0.85rem; color: #94a3b8;">3 nós ativos</div>
+                            </div>
+                            <span class="status-dot status-online"></span>
+                        </div>
+                    </div>
+
+                    <div style="padding: 1rem; background: #334155; border-radius: 8px; margin-bottom: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 700; color: #e2e8f0; margin-bottom: 0.25rem;">API HTTP</div>
+                                <div style="font-size: 0.85rem; color: #94a3b8;">http://localhost:8222</div>
+                            </div>
+                            <span class="status-dot status-online"></span>
+                        </div>
+                    </div>
+
+                    <div style="padding: 1rem; background: #334155; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 700; color: #e2e8f0; margin-bottom: 0.25rem;">Dashboard</div>
+                                <div style="font-size: 0.85rem; color: #94a3b8;">http://localhost:5000</div>
+                            </div>
+                            <span class="status-dot status-online"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Log de Eventos -->
+                <div class="card">
+                    <h2>📝 Log de Eventos</h2>
+                    <div id="event-log" style="max-height: 300px; overflow-y: auto; background: #0f172a; padding: 1rem; border-radius: 8px; border: 1px solid #334155;">
+                        <div class="log-entry">✓ Sistema iniciado</div>
+                        <div class="log-entry">✓ Conectado ao NATS cluster</div>
+                        <div class="log-entry">✓ Dashboard ativo</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // Configuração dos Nós (Nodes)
-        const nodes = new vis.DataSet([
-            { id: 'producer', label: 'producer', shape: 'circle', color: { background: '#5eead4', border: '#0f766e' }, font: { face: 'Inter', size: 14 }, level: 0 },
-            { id: 'nats_server', label: 'NATS Server\n(Core)', shape: 'diamond', color: { background: '#3b82f6', border: '#1d4ed8' }, font: { face: 'Inter', size: 14, color: 'white' }, level: 1, size: 25 },
-            
-            // Queue Groups (Substituem as Filas)
-            { id: 'q_payment', label: 'Queue Group:\norders.payment\nWorkers: 0', shape: 'box', color: { background: '#7dd3fc', border: '#0284c7' }, font: { face: 'Inter', size: 14 }, margin: 10, level: 2 },
-            { id: 'q_stock', label: 'Queue Group:\norders.stock\nWorkers: 0', shape: 'box', color: { background: '#7dd3fc', border: '#0284c7' }, font: { face: 'Inter', size: 14 }, margin: 10, level: 2 },
-            { id: 'q_notification', label: 'Queue Group:\norders.notification\nWorkers: 0', shape: 'box', color: { background: '#7dd3fc', border: '#0284c7' }, font: { face: 'Inter', size: 14 }, margin: 10, level: 2 },
-            
-            // Consumidores (inicialmente invisíveis)
-            { id: 'c_payment', label: 'workers ativas', shape: 'star', color: { background: '#fde047', border: '#854d0e' }, font: { face: 'Inter', size: 14 }, hidden: true, size: 20, level: 3 },
-            { id: 'c_stock', label: 'workers ativas', shape: 'star', color: { background: '#fde047', border: '#854d0e' }, font: { face: 'Inter', size: 14 }, hidden: true, size: 20, level: 3 },
-            { id: 'c_notification', label: 'workers ativas', shape: 'star', color: { background: '#fde047', border: '#854d0e' }, font: { face: 'Inter', size: 14 }, hidden: true, size: 20, level: 3 }
-        ]);
-
-        // Configuração das Conexões (Edges)
-        const edges = new vis.DataSet([
-            { id: 'e_prod_ex', from: 'producer', to: 'nats_server', arrows: 'to', color: { color: '#000000' }, width: 2 },
-            
-            // Ligações NATS -> Queue Groups
-            { id: 'e_ex_pay', from: 'nats_server', to: 'q_payment', label: 'order.payment.*', arrows: 'to', color: { color: '#000000' }, font: { align: 'top', face: 'Inter' } },
-            { id: 'e_ex_stk', from: 'nats_server', to: 'q_stock', label: 'order.stock.*', arrows: 'to', color: { color: '#000000' }, font: { align: 'top', face: 'Inter' } },
-            { id: 'e_ex_not', from: 'nats_server', to: 'q_notification', label: 'order.notify.*', arrows: 'to', color: { color: '#000000' }, font: { align: 'top', face: 'Inter' } },
-            
-            // Ligações Queue Groups -> Consumers
-            { id: 'e_pay_c', from: 'q_payment', to: 'c_payment', arrows: 'to', color: { color: '#000000' } },
-            { id: 'e_stk_c', from: 'q_stock', to: 'c_stock', arrows: 'to', color: { color: '#000000' } },
-            { id: 'e_not_c', from: 'q_notification', to: 'c_notification', arrows: 'to', color: { color: '#000000' } }
-        ]);
-
-        // Configuração da Rede Vis.js
-        const container = document.getElementById('network');
-        const data = { nodes: nodes, edges: edges };
-        const options = {
-            layout: {
-                hierarchical: {
-                    direction: 'LR',
-                    sortMethod: 'directed',
-                    levelSeparation: 250,
-                    nodeSpacing: 100
-                }
-            },
-            physics: false,
-            interaction: { dragNodes: true, zoomView: true, dragView: true },
-            edges: { smooth: false } // Linhas retas puras para animação
+        const throughputData = {
+            labels: [],
+            datasets: [{
+                label: 'Publicadas/s',
+                data: [],
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                tension: 0.4,
+                fill: true,
+                borderWidth: 2
+            }, {
+                label: 'Entregues/s',
+                data: [],
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                tension: 0.4,
+                fill: true,
+                borderWidth: 2
+            }]
         };
 
-        const network = new vis.Network(container, data, options);
-
-        // --- SISTEMA DE ANIMAÇÃO DE BOLINHAS ---
-        let particles = [];
-        
-        function spawnParticle(fromId, toId, color) {
-            particles.push({
-                from: fromId,
-                to: toId,
-                progress: 0,
-                color: color,
-                speed: 0.01 + Math.random() * 0.02
-            });
-        }
-
-        network.on("afterDrawing", function (ctx) {
-            const pos = network.getPositions();
-            for (let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i];
-                p.progress += p.speed;
-                if (p.progress >= 1) {
-                    particles.splice(i, 1);
-                    continue;
-                }
-                
-                let pos1 = pos[p.from];
-                let pos2 = pos[p.to];
-                if (!pos1 || !pos2) continue;
-
-                let x = pos1.x + (pos2.x - pos1.x) * p.progress;
-                let y = pos1.y + (pos2.y - pos1.y) * p.progress;
-
-                ctx.beginPath();
-                ctx.arc(x, y, 5, 0, 2 * Math.PI, false);
-                ctx.fillStyle = p.color;
-                ctx.fill();
-                ctx.lineWidth = 1;
-                ctx.strokeStyle = "#1e293b";
-                ctx.stroke();
-            }
-        });
-
-        function animate() {
-            if (particles.length > 0) network.redraw();
-            requestAnimationFrame(animate);
-        }
-        animate();
-        // ----------------------------------------
-
-        // SSE: Recebendo dados em tempo real
-        const eventSource = new EventSource("/stream");
-        const statusInd = document.getElementById('status-indicator');
-
-        function updateQueueStatus(queueName, nodeId, consumerId, queuesData) {
-            const qData = queuesData[queueName];
-            if (qData) {
-                const consumersCount = qData.consumers || 0;
-                
-                nodes.update({ id: nodeId, label: 'Queue Group:\n' + queueName + '\nWorkers: ' + consumersCount });
-                
-                if (consumersCount > 0 && consumerId) {
-                    nodes.update({ id: consumerId, hidden: false, label: consumersCount + ' worker(s)\nprocessando' });
-                } else if(consumerId) {
-                    nodes.update({ id: consumerId, hidden: true });
-                }
-            }
-        }
-
-        eventSource.onmessage = function(event) {
-            const result = JSON.parse(event.data);
-            
-            if (result.error) {
-                statusInd.classList.replace('text-emerald-600', 'text-amber-600');
-                statusInd.classList.replace('bg-emerald-50', 'bg-amber-50');
-                statusInd.classList.replace('border-emerald-200', 'border-amber-200');
-                statusInd.innerHTML = `<span class="h-2 w-2 mr-2 rounded-full bg-amber-500"></span> API Offline`;
-                return;
-            } else {
-                statusInd.classList.replace('text-amber-600', 'text-emerald-600');
-                statusInd.classList.replace('text-red-600', 'text-emerald-600');
-                statusInd.classList.replace('bg-amber-50', 'bg-emerald-50');
-                statusInd.classList.replace('bg-red-50', 'bg-emerald-50');
-                statusInd.classList.replace('border-amber-200', 'border-emerald-200');
-                statusInd.classList.replace('border-red-200', 'border-emerald-200');
-                statusInd.innerHTML = `<span class="relative flex h-2 w-2 mr-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span> Conectado`;
-            }
-
-            if (result.status === "ok" && result.queues) {
-                updateQueueStatus('orders.payment', 'q_payment', 'c_payment', result.queues);
-                updateQueueStatus('orders.stock', 'q_stock', 'c_stock', result.queues);
-                updateQueueStatus('orders.notification', 'q_notification', 'c_notification', result.queues);
-                
-                // --- GERAÇÃO DE BOLINHAS BASEADO NAS TAXAS ---
-                const queueMapping = {
-                    'orders.payment': { q: 'q_payment', c: 'c_payment' },
-                    'orders.stock': { q: 'q_stock', c: 'c_stock' },
-                    'orders.notification': { q: 'q_notification', c: 'c_notification' }
-                };
-
-                for (const [qName, qData] of Object.entries(result.queues)) {
-                    if (queueMapping[qName]) {
-                        const ids = queueMapping[qName];
-                        
-                        // Bolinhas de entrada: Produtor -> NATS -> Queue Group
-                        if (qData.publish_rate > 0) {
-                            let amount = Math.min(Math.floor(qData.publish_rate / 10) + 1, 3);
-                            for(let i=0; i<amount; i++) {
-                                spawnParticle('producer', 'nats_server', '#5eead4');
-                                spawnParticle('nats_server', ids.q, '#3b82f6'); 
-                            }
-                        }
-
-                        // Bolinhas de saída: Queue Group -> Worker
-                        if (qData.deliver_rate > 0 && !nodes.get(ids.c).hidden) {
-                            let amount = Math.min(Math.floor(qData.deliver_rate / 10) + 1, 3);
-                            for(let i=0; i<amount; i++) {
-                                spawnParticle(ids.q, ids.c, '#fde047');
-                            }
-                        }
+        const throughputChart = new Chart(document.getElementById('throughputChart'), {
+            type: 'line',
+            data: throughputData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { 
+                        position: 'top',
+                        labels: { color: '#e2e8f0', font: { size: 12, weight: 'bold' } }
+                    }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    x: {
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' }
                     }
                 }
             }
-        };
+        });
 
-        eventSource.onerror = function() {
-            statusInd.classList.replace('text-emerald-600', 'text-red-600');
-            statusInd.classList.replace('bg-emerald-50', 'bg-red-50');
-            statusInd.classList.replace('border-emerald-200', 'border-red-200');
-            statusInd.innerHTML = `<span class="h-2 w-2 mr-2 rounded-full bg-red-500"></span> Conexão Perdida`;
-        };
+        function addLog(message) {
+            const log = document.getElementById('event-log');
+            const now = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${now}] ${message}`;
+            log.insertBefore(entry, log.firstChild);
+            if (log.children.length > 50) log.removeChild(log.lastChild);
+        }
 
-        async function sendProduce() {
-            const count = 1;
-            const queue = document.getElementById('prod-queue').value;
+        async function produceMessages() {
+            const subject = document.getElementById('prod-subject').value;
+            const count = parseInt(document.getElementById('msg-count').value);
+            
+            if (count < 1 || count > 1000) {
+                alert('Por favor, insira um valor entre 1 e 1000');
+                return;
+            }
+
             try {
                 const res = await fetch('/api/produce', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ count: parseInt(count), queue: queue })
-                });
-                if(!res.ok) alert('Erro ao produzir mensagens');
-            } catch(e) { console.error(e); }
-        }
-
-        async function sendConsume() {
-            try {
-                const res = await fetch('/api/consume', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({})
+                    body: JSON.stringify({ count, queue: subject })
                 });
                 const data = await res.json();
-                alert(data.message);
-            } catch(e) { console.error(e); }
+                if (res.ok) {
+                    addLog(`✓ ${count} mensagem(ns) enviada(s) para ${subject}`);
+                } else {
+                    addLog(`✗ Erro: ${data.error || 'Falha ao enviar mensagens'}`);
+                }
+            } catch(e) {
+                addLog('✗ Erro de conexão com o servidor');
+            }
         }
+
+        // SSE para atualização em tempo real
+        const eventSource = new EventSource("/stream");
+        
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.error) {
+                document.getElementById('status-text').textContent = 'Erro na API';
+                document.querySelector('#status-indicator .status-dot').classList.replace('status-online', 'status-offline');
+                return;
+            }
+
+            if (data.status === "ok") {
+                document.getElementById('publish-rate').textContent = Math.round(data.publish_rate || 0);
+                document.getElementById('deliver-rate').textContent = Math.round(data.deliver_rate || 0);
+                
+                let totalWorkers = 0;
+                if (data.queues) {
+                    ['payment', 'stock', 'notification'].forEach(type => {
+                        const qData = data.queues[`orders.${type}`];
+                        if (qData) {
+                            const workers = qData.consumers || 0;
+                            totalWorkers += workers;
+                            document.getElementById(`${type}-count`).textContent = workers;
+                            
+                            const workerEl = document.getElementById(`${type}-workers`);
+                            if (workers > 0) {
+                                workerEl.innerHTML = `<span class="worker-badge">${workers} worker(s) ativo(s)</span>`;
+                            } else {
+                                workerEl.innerHTML = '<span style="color: #64748b;">Nenhum worker conectado</span>';
+                            }
+                        }
+                    });
+                }
+                document.getElementById('total-consumers').textContent = totalWorkers;
+
+                // Atualizar gráfico
+                const now = new Date().toLocaleTimeString();
+                if (throughputData.labels.length > 20) {
+                    throughputData.labels.shift();
+                    throughputData.datasets[0].data.shift();
+                    throughputData.datasets[1].data.shift();
+                }
+                throughputData.labels.push(now);
+                throughputData.datasets[0].data.push(Math.round(data.publish_rate || 0));
+                throughputData.datasets[1].data.push(Math.round(data.deliver_rate || 0));
+                throughputChart.update('none');
+            }
+        };
+
+        eventSource.onerror = function() {
+            document.getElementById('status-text').textContent = 'Conexão Perdida';
+            document.querySelector('#status-indicator .status-dot').classList.replace('status-online', 'status-offline');
+        };
     </script>
 </body>
 </html>

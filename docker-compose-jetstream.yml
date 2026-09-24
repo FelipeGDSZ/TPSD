@@ -1,0 +1,30 @@
+# docker-compose-jetstream.yml
+# Configuração simplificada com 1 nó NATS + JetStream
+# Para demonstração do TP01
+
+services:
+  nats:
+    image: nats:latest
+    hostname: nats
+    container_name: nats_jetstream
+    command: >
+      --name nats_jetstream
+      --http_port 8222
+      --jetstream
+      --store_dir /data
+      --max_file_store 1GB
+      --max_mem_store 512MB
+    ports:
+      - "4222:4222"    # Porta dos clientes
+      - "8222:8222"    # API HTTP de monitoramento
+    volumes:
+      - nats_jetstream_data:/data
+    networks:
+      - nats_net
+
+volumes:
+  nats_jetstream_data:
+
+networks:
+  nats_net:
+    driver: bridge
