@@ -24,8 +24,8 @@ from nats.aio.client import Client as NATS
 
 # ── Configurações ──────────────────────────────────────────────────
 NATS_URL = "nats://localhost:4222"
-SUBJECT = "order.payment.*"
-QUEUE_GROUP = "orders.payment"
+SUBJECT = "orders.payment"
+QUEUE_GROUP = "payment_workers"
 
 
 async def processar_pagamento(msg):

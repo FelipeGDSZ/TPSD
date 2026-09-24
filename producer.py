@@ -16,10 +16,10 @@ from nats.aio.client import Client as NATS
 # ── Configurações de conexão ───────────────────────────────────────
 NATS_URL = "nats://localhost:4222"
 
-ROUTING_KEYS = [
-    "order.payment.new",
-    "order.stock.reserve",
-    "order.notify.confirm",
+SUBJECTS = [
+    "orders.payment",
+    "orders.stock",
+    "orders.notification",
 ]
 
 PRODUCTS = ["notebook", "smartphone", "tablet", "monitor", "headset", "keyboard", "mouse"]
@@ -38,7 +38,7 @@ def gerar_pedido(numero: int) -> dict:
     }
 
 
-async def executar(total: int, intervalo_log: int = 1000, target_routing_key: str = None):
+async def executar(total: int, intervalo_log: int = 1000, target_subject: str = None):
     """Conecta ao NATS e envia `total` pedidos de forma assíncrona."""
     nc = NATS()
     print(f"[PRODUTOR] Conectando ao NATS em {NATS_URL}...")
@@ -58,7 +58,7 @@ async def executar(total: int, intervalo_log: int = 1000, target_routing_key: st
     delay = min(0.1, 10.0 / total) if total > 0 else 0.0
 
     for i in range(1, total + 1):
-        subject = target_routing_key if target_routing_key else random.choice(ROUTING_KEYS)
+        subject = target_subject if target_subject else random.choice(SUBJECTS)
         pedido = gerar_pedido(i)
         corpo = json.dumps(pedido).encode("utf-8")
 
@@ -102,8 +102,8 @@ if __name__ == "__main__":
     parser.add_argument("--report", type=int, default=1000,
                         help="A cada quantos pedidos imprimir progresso (padrão: 1000)")
     parser.add_argument("--target", type=str, default=None,
-                        help="Subject alvo específico (ex: order.payment.new)")
+                        help="Subject alvo específico (ex: orders.payment)")
     args = parser.parse_args()
 
     # Inicia o loop de eventos do asyncio para rodar a função
-    asyncio.run(executar(total=args.total, intervalo_log=args.report, target_routing_key=args.target))
+    asyncio.run(executar(total=args.total, intervalo_log=args.report, target_subject=args.target))

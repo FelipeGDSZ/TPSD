@@ -23,8 +23,8 @@ from nats.aio.client import Client as NATS
 
 # ── Configurações ──────────────────────────────────────────────────
 NATS_URL = "nats://localhost:4222"
-SUBJECT = "order.stock.*"
-QUEUE_GROUP = "orders.stock"
+SUBJECT = "orders.stock"
+QUEUE_GROUP = "stock_workers"
 
 
 async def processar_estoque(msg):

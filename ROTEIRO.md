@@ -21,13 +21,13 @@ Com a máquina ligada, conecte-se a ela para rodar o sistema:
    ```bash
    cd TP-SD/TP1
    ```
-3. Suba o cluster do RabbitMQ (os 3 servidores):
+3. Suba o cluster do NATS (os 3 servidores):
    ```bash
    sudo docker compose up -d
    ```
-4. Aplique a configuração de cluster e filas resilientes (Quorum Queues):
+4. Verifique se os 3 nós estão rodando:
    ```bash
-   sudo bash init_cluster.sh
+   sudo docker ps
    ```
 
 ---
@@ -43,8 +43,8 @@ python3 dashboard.py
 
 ## 4. Mostrando para o Professor
 Agora você vai abrir os sites para apresentar:
-1. **Painel do RabbitMQ:** Abra uma nova aba no navegador e acesse `http://SEU_IP_PUBLICO:15672`. 
-   - Usuário: `admin` | Senha: `admin123`
+1. **API de Monitoramento do NATS:** Abra uma nova aba no navegador e acesse `http://SEU_IP_PUBLICO:8222/varz`. 
+   - Mostra as métricas em JSON (mensagens in/out, conexões, etc.)
 2. **Seu Dashboard Interativo:** Abra outra aba e acesse `http://SEU_IP_PUBLICO:5000`.
 
 ---
@@ -53,35 +53,50 @@ Agora você vai abrir os sites para apresentar:
 
 ### Cena 1: Produção de Mensagens
 - No seu Dashboard, vá em **Produzir Mensagens**.
-- Mande gerar `1000` mensagens para a fila de **Estoque**.
-- **O que mostrar:** Mostre o número de mensagens crescendo instantaneamente no seu mapa e no gráfico original do RabbitMQ.
+- Mande gerar mensagens para os subjects de **Pagamento**, **Estoque** ou **Notificação**.
+- **O que mostrar:** Mostre as mensagens sendo processadas em tempo real no seu dashboard e no monitor do NATS.
 
-### Cena 2: O Consumidor e o QoS
-- Vá na caixa **Consumir Mensagens**.
-- Peça para consumir `1000` mensagens da fila de **Estoque**.
-- **O que mostrar:** Explique que o sistema está puxando `1 mensagem por vez` e mostre o número caindo gradativamente enquanto a "estrelinha" amarela aparece.
+### Cena 2: Os Consumidores e Queue Groups
+- Abra terminais separados e inicie os consumidores:
+  ```bash
+  python3 consumer_payment.py
+  python3 consumer_stock.py
+  python3 consumer_notification.py
+  ```
+- **O que mostrar:** Explique que o NATS distribui as mensagens entre múltiplos consumidores usando **Queue Groups** (balanceamento de carga automático).
 
 ### Cena 3: Tolerância a Falhas (Queda de Servidor)
 - Abra um **Segundo Terminal** na AWS (clicando em "Conectar" de novo em outra aba).
 - Force a queda do nó 2:
   ```bash
-  sudo docker stop rabbit2
+  sudo docker stop nats2
   ```
 - **O que mostrar:**
-  1. Vá no painel do RabbitMQ (porta 15672) e mostre que o `rabbit2` caiu (ficou vermelho).
+  1. Vá na API do NATS (`http://SEU_IP:8222/varz`) e mostre que o cluster ainda responde.
   2. Volte no seu Dashboard e mande produzir/consumir mais mensagens.
-  3. Explique que o sistema **NÃO PAROU** porque as *Quorum Queues* garantem cópias da fila nos nós sobreviventes (`rabbit1` e `rabbit3`).
+  3. Explique que o sistema **NÃO PAROU** porque os outros nós do cluster (`nats1` e `nats3`) continuam operacionais.
 - Ligue de volta para mostrar a recuperação:
   ```bash
-  sudo docker start rabbit2
+  sudo docker start nats2
   ```
+
+### Cena 4: Comunicação Síncrona (RPC)
+- Inicie o servidor RPC de estoque:
+  ```bash
+  python3 rpc_server.py
+  ```
+- Em outro terminal, consulte o estoque:
+  ```bash
+  python3 rpc_client.py
+  ```
+- **O que mostrar:** Demonstre a consulta síncrona (request-reply) para verificar disponibilidade de produtos em tempo real.
 
 ---
 
-## Dica Extra: Como zerar as filas e o sistema
-Se você precisar limpar o histórico de mensagens, consumidores e zerar as filas para começar a apresentação do zero, siga os passos abaixo (leva 10 segundos):
+## Dica Extra: Como zerar o sistema
+Se você precisar limpar o histórico e zerar tudo para começar a apresentação do zero:
 1. Aperte `Ctrl + C` para parar o `dashboard.py`.
-2. Delete o cluster e os volumes:
+2. Delete o cluster:
    ```bash
    sudo docker compose down -v
    ```
@@ -89,8 +104,4 @@ Se você precisar limpar o histórico de mensagens, consumidores e zerar as fila
    ```bash
    sudo docker compose up -d
    ```
-4. Recrie as filas seguras:
-   ```bash
-   sudo bash init_cluster.sh
-   ```
-5. Ligue o dashboard novamente (`python3 dashboard.py`) e tudo estará 100% zerado!
+4. Ligue o dashboard novamente (`python3 dashboard.py`) e tudo estará zerado!

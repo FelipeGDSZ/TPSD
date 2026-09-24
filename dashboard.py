@@ -73,17 +73,16 @@ def buscar_metricas():
             "timestamp": agora
         }
 
-        # Contagem de consumidores agrupados pelas chaves que estamos usando
-        # Para simplificar a visualização baseada no TP1 original
+        # Contagem de consumidores agrupados por subject
         consumidores_pagamento = 0
         consumidores_estoque = 0
         consumidores_notificacao = 0
 
         for conn in connz.get("connections", []):
             subs = conn.get("subscriptions_list", [])
-            if "order.payment.*" in subs: consumidores_pagamento += 1
-            if "order.stock.*" in subs: consumidores_estoque += 1
-            if "order.notify.*" in subs: consumidores_notificacao += 1
+            if "orders.payment" in subs: consumidores_pagamento += 1
+            if "orders.stock" in subs: consumidores_estoque += 1
+            if "orders.notification" in subs: consumidores_notificacao += 1
 
         dados_filas = {
             "orders.payment": {
@@ -125,9 +124,9 @@ def stream():
             time.sleep(1)
     return Response(gerador_eventos(), content_type="text/event-stream")
 
-def executar_produtor_background(count, routing_key):
+def executar_produtor_background(count, subject):
     """Wrapper para rodar o produtor assíncrono em uma thread síncrona do Flask."""
-    asyncio.run(producer.executar(total=count, target_routing_key=routing_key))
+    asyncio.run(producer.executar(total=count, target_subject=subject))
 
 @app.route("/api/produce", methods=["POST"])
 def api_produce():
@@ -140,16 +139,16 @@ def api_produce():
             return jsonify({"error": "Para a apresentação, envie apenas 1 mensagem por vez."}), 400
             
         # Mapeamento da fila abstrata do front para o subject do NATS
-        routing_key = None
+        subject = None
         if queue == "orders.payment":
-            routing_key = "order.payment.new"
+            subject = "orders.payment"
         elif queue == "orders.stock":
-            routing_key = "order.stock.reserve"
+            subject = "orders.stock"
         elif queue == "orders.notification":
-            routing_key = "order.notify.confirm"
+            subject = "orders.notification"
             
         # Roda o script producer (que agora é async) em uma thread background
-        threading.Thread(target=executar_produtor_background, args=(count, routing_key)).start()
+        threading.Thread(target=executar_produtor_background, args=(count, subject)).start()
         
         return jsonify({"status": "success", "message": f"Produzindo {count} mensagem..."})
     except Exception as e:
