@@ -73,17 +73,17 @@ def buscar_metricas():
             "timestamp": agora
         }
 
-        # Contagem de consumidores agrupados pelas chaves que estamos usando
-        # Para simplificar a visualização baseada no TP1 original
+        # Contagem de consumidores agrupados pelas chaves simplificadas
         consumidores_pagamento = 0
         consumidores_estoque = 0
         consumidores_notificacao = 0
 
         for conn in connz.get("connections", []):
             subs = conn.get("subscriptions_list", [])
-            if "order.payment.*" in subs: consumidores_pagamento += 1
-            if "order.stock.*" in subs: consumidores_estoque += 1
-            if "order.notify.*" in subs: consumidores_notificacao += 1
+            # Agora procuramos pelos subjects diretos que configuramos nos consumidores
+            if "pagamento" in subs: consumidores_pagamento += 1
+            if "estoque" in subs: consumidores_estoque += 1
+            if "notificacao" in subs: consumidores_notificacao += 1
 
         dados_filas = {
             "orders.payment": {
@@ -139,16 +139,16 @@ def api_produce():
         if count != 1:
             return jsonify({"error": "Para a apresentação, envie apenas 1 mensagem por vez."}), 400
             
-        # Mapeamento da fila abstrata do front para o subject do NATS
+        # Mapeamento da fila abstrata do front para o subject simplificado do NATS
         routing_key = None
         if queue == "orders.payment":
-            routing_key = "order.payment.new"
+            routing_key = "pagamento"
         elif queue == "orders.stock":
-            routing_key = "order.stock.reserve"
+            routing_key = "estoque"
         elif queue == "orders.notification":
-            routing_key = "order.notify.confirm"
+            routing_key = "notificacao"
             
-        # Roda o script producer (que agora é async) em uma thread background
+        # Roda o script producer em uma thread background
         threading.Thread(target=executar_produtor_background, args=(count, routing_key)).start()
         
         return jsonify({"status": "success", "message": f"Produzindo {count} mensagem..."})

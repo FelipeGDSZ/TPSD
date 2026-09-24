@@ -2,18 +2,6 @@
 consumer_notification.py
 --------------------------------------
 CONSUMIDOR DE NOTIFICAÇÕES
-
-Este script fica "escutando" o subject 'order.notify.*' esperando pedidos.
-Quando um pedido chega, ele simula o envio de uma notificação ao cliente
-(e-mail, SMS ou push notification).
-
-Como funciona:
-  1. Conecta ao NATS
-  2. Assina o subject com o queue group 'orders.notification'
-  3. Para cada pedido, escolhe um canal de contato e "envia" de forma assíncrona
-
-Execute com:
-  python consumer_notification.py
 """
 
 import asyncio
@@ -23,7 +11,7 @@ from nats.aio.client import Client as NATS
 
 # ── Configurações ──────────────────────────────────────────────────
 NATS_URL = "nats://localhost:4222"
-SUBJECT = "order.notify.*"
+SUBJECT = "notificacao"
 QUEUE_GROUP = "orders.notification"
 
 # Canais de comunicação disponíveis para notificar o cliente

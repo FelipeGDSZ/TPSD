@@ -1,5 +1,5 @@
 """
-producer.py (Versão NATS - Revisada)
+producer.py
 ------------------------------------
 O PRODUTOR cria e envia pedidos para o NATS.
 """
@@ -17,9 +17,9 @@ from nats.aio.client import Client as NATS
 NATS_URL = "nats://localhost:4222"
 
 ROUTING_KEYS = [
-    "order.payment.new",
-    "order.stock.reserve",
-    "order.notify.confirm",
+    "pagamento",
+    "estoque",
+    "notificacao",
 ]
 
 PRODUCTS = ["notebook", "smartphone", "tablet", "monitor", "headset", "keyboard", "mouse"]
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     parser.add_argument("--report", type=int, default=1000,
                         help="A cada quantos pedidos imprimir progresso (padrão: 1000)")
     parser.add_argument("--target", type=str, default=None,
-                        help="Subject alvo específico (ex: order.payment.new)")
+                        help="Subject alvo específico (ex: pagamento)")
     args = parser.parse_args()
 
     # Inicia o loop de eventos do asyncio para rodar a função

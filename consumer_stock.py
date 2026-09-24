@@ -1,19 +1,7 @@
 """
-consumer_stock.py 
+consumer_stock.py
 -------------------------------
 CONSUMIDOR DE ESTOQUE
-
-Este script fica "escutando" o subject 'order.stock.*' esperando pedidos chegarem.
-Utiliza 'Queue Groups' do NATS para garantir que a reserva do estoque de uma
-mesma mensagem não seja duplicada caso haja múltiplas instâncias deste script rodando.
-
-Como funciona:
-  1. Conecta ao NATS
-  2. Assina o subject com o queue group 'orders.stock'
-  3. Para cada pedido, verifica os produtos de forma assíncrona
-
-Execute com:
-  python consumer_stock.py
 """
 
 import asyncio
@@ -23,7 +11,7 @@ from nats.aio.client import Client as NATS
 
 # ── Configurações ──────────────────────────────────────────────────
 NATS_URL = "nats://localhost:4222"
-SUBJECT = "order.stock.*"
+SUBJECT = "estoque"
 QUEUE_GROUP = "orders.stock"
 
 
@@ -39,8 +27,7 @@ async def processar_estoque(msg):
         product_id  = pedido.get("product_id", "?")
         quantity    = pedido.get("quantity", 1)
 
-        # Simula o tempo de consulta ao sistema de estoque (10–30ms)
-        # Fundamental usar asyncio.sleep para não bloquear o loop de eventos.
+        # Simula o tempo de processamento de baixa no banco de dados (10-30ms)
         await asyncio.sleep(random.uniform(0.01, 0.03))
 
         print(f"  [ESTOQUE]  Reservado | {order_id} | {quantity}x {product_id} | Cliente {customer_id}")
@@ -63,17 +50,17 @@ async def main():
     print(f"[ESTOQUE] Aguardando pedidos. Pressione Ctrl+C para sair.\n")
 
     # A inscrição com o parâmetro "queue" garante a distribuição igualitária (round-robin)
+    # substituindo as filas tradicionais do RabbitMQ.
     await nc.subscribe(SUBJECT, queue=QUEUE_GROUP, cb=processar_estoque)
 
     try:
-        # Pausa a execução da main, deixando os callbacks rodarem no background
+        # Pausa a execução da main, deixando as callbacks rodarem no background
         await asyncio.Event().wait()
     except asyncio.CancelledError:
         pass
     finally:
         print("\n[ESTOQUE] Encerrando conexão limpa com o NATS...")
         await nc.drain()
-
 
 if __name__ == "__main__":
     try:

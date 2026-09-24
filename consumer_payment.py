@@ -1,20 +1,7 @@
 """
-consumer_payment.py 
+consumer_payment.py (Versão Simplificada)
 --------------------------------------------
 CONSUMIDOR DE PAGAMENTO
-
-Este script fica "escutando" o subject 'order.payment.*' esperando pedidos chegarem.
-No NATS, usamos 'Queue Groups'.
-Isso garante que se rodar 5 instâncias deste script, a mensagem será 
-entregue para apenas UM deles por vez (balanceamento de carga/round-robin).
-
-Como funciona:
-  1. Conecta ao NATS
-  2. Assina o subject com o queue group 'orders.payment'
-  3. Para cada pedido recebido, simula a validação e cobrança de forma assíncrona
-
-Execute com:
-  python consumer_payment.py
 """
 
 import asyncio
@@ -24,14 +11,10 @@ from nats.aio.client import Client as NATS
 
 # ── Configurações ──────────────────────────────────────────────────
 NATS_URL = "nats://localhost:4222"
-SUBJECT = "order.payment.*"
+SUBJECT = "pagamento"
 QUEUE_GROUP = "orders.payment"
 
-
 async def processar_pagamento(msg):
-    """
-    Callback assíncrona chamada automaticamente pelo NATS a cada mensagem.
-    """
     try:
         pedido = json.loads(msg.data.decode("utf-8"))
 
@@ -39,21 +22,12 @@ async def processar_pagamento(msg):
         customer_id = pedido.get("customer_id", "?")
         amount      = pedido.get("amount", 0.0)
 
-        # Simula o tempo que um sistema real de pagamento levaria (5–50ms)
-        # ATENÇÃO: É vital usar asyncio.sleep e não time.sleep para não travar
-        # a thread principal do event loop quando várias mensagens chegarem juntas.
         await asyncio.sleep(random.uniform(0.005, 0.05))
 
         print(f"  [PAGAMENTO]  Aprovado | {order_id} | R$ {amount:.2f} | Cliente {customer_id}")
         
-        # Nota sobre ACKs:
-        # O NATS Core (padrão) é "fire-and-forget", ou seja, se a conexão cair, 
-        # a mensagem é perdida e não há confirmação manual (msg.ack()).
-        # Se usarmos o NATS JetStream adicionaríamos 'await msg.ack()' aqui.
-
     except Exception as e:
         print(f"  [PAGAMENTO]  Erro ao processar mensagem: {e}")
-
 
 async def main():
     nc = NATS()
@@ -68,26 +42,18 @@ async def main():
     print(f"[PAGAMENTO] Ouvindo o subject '{SUBJECT}' no grupo '{QUEUE_GROUP}'...")
     print(f"[PAGAMENTO] Aguardando pedidos. Pressione Ctrl+C para sair.\n")
 
-    # A inscrição com "queue" faz o NATS balancear a carga entre os scripts idênticos.
-    # Isso substitui totalmente a criação da fila e os bindings do código antigo.
     await nc.subscribe(SUBJECT, queue=QUEUE_GROUP, cb=processar_pagamento)
 
     try:
-        # O Event().wait() pausa a execução desta função (mantendo o script vivo) 
-        # para que o asyncio continue rodando as callbacks em background.
         await asyncio.Event().wait()
     except asyncio.CancelledError:
         pass
     finally:
         print("\n[PAGAMENTO] Encerrando conexão limpa com o NATS...")
-        # O drain() garante que não vamos fechar a conexão no meio de um processamento
         await nc.drain()
-
 
 if __name__ == "__main__":
     try:
-        # Ponto de entrada do script assíncrono
         asyncio.run(main())
     except KeyboardInterrupt:
-        # Captura o Ctrl+C silenciosamente para não cuspir erro no terminal
         pass

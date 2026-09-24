@@ -1,5 +1,5 @@
 """
-benchmark.py
+benchmark.py 
 --------------------------
 Script para testar o limite de vazão (Throughput) do NATS.
 """
@@ -51,8 +51,8 @@ def run_benchmark(msgs, consumers_count):
     print(f"\n[BENCHMARK] Gerando {msgs} mensagens...")
     start_time = time.time()
     
-    # O produtor agora é chamado para publicar o mais rápido possível
-    subprocess.run(["python", "producer.py", "--total", str(msgs), "--target", "order.payment.new"], check=True)
+    # O produtor agora é chamado para publicar no subject simplificado 'pagamento'
+    subprocess.run(["python", "producer.py", "--total", str(msgs), "--target", "pagamento"], check=True)
     
     # Aguarda até que o NATS confirme a entrega de todas as mensagens aos consumidores
     while True:

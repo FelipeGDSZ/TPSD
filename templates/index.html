@@ -3,304 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NATS Topology Map</title> 
+    <title>Dashboard NATS Core - TP1</title>
+    
+    <!-- Tailwind CSS para estilização rápida -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Vis.js para o mapa topológico -->
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
     <style>
-        body { background-color: #ffffff; color: #1e293b; font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; }
-        header { padding: 1rem 2rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background-color: #f8fafc; }
-        .main-container { display: flex; flex: 1; overflow: hidden; }
-        .sidebar { width: 280px; border-right: 2px solid #1e293b; display: flex; flex-direction: column; background: #f8fafc; overflow-y: auto; flex-shrink: 0; }
-        .legend-container { padding: 1.5rem 0; display: flex; flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #e2e8f0; background: #ffffff; }
-        .interactive-panel { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
-        .network-container { flex: 1; position: relative; background-color: #ffffff; }
-        #network { width: 100%; height: 100%; }
-        
-        /* Legend Shapes. */
-        .legend-item { display: flex; flex-direction: column; align-items: center; font-size: 0.8rem; font-weight: 600; color: #0f172a; gap: 0.5rem; text-align: center; }
-        .shape-nats { width: 22px; height: 22px; background-color: #3b82f6; border: 2px solid #1d4ed8; transform: rotate(45deg); margin-bottom: 4px; }
-        .shape-queue { width: 32px; height: 20px; background-color: #7dd3fc; border: 2px solid #0284c7; border-radius: 3px; }
-        .shape-producer { width: 26px; height: 26px; border-radius: 50%; background-color: #5eead4; border: 2px solid #0f766e; }
-        .shape-consumer { 
-            width: 28px; height: 28px; background-color: #fde047; border: 2px solid #854d0e; 
-            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        /* Fundo escuro sólido, sem gradientes */
+        body {
+            background-color: #0f172a; 
+            color: #f8fafc;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
         }
-        
-        @media (max-width: 768px) {
-            .main-container { flex-direction: column-reverse; overflow-y: auto; }
-            .sidebar { width: 100%; border-right: none; border-top: 2px solid #1e293b; overflow-y: visible; }
-            .network-container { height: 350px; flex: none; }
-            header { flex-direction: column; gap: 0.5rem; text-align: center; }
-            #network { height: 350px; }
+
+        /* Estilização do quadro da topologia com fundo sólido */
+        #mynetwork {
+            width: 100%;
+            height: 450px;
+            background-color: #1e293b; 
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Cards com cores sólidas e opacas, sem desfoque (blur) */
+        .solid-card {
+            background-color: #1e293b; 
+            border: 1px solid #334155;
         }
     </style>
 </head>
-<body>
-    <header>
-        <div>
-            <h1 class="text-2xl font-bold text-slate-800">Mapa Topológico NATS</h1>
-            <p class="text-sm text-slate-500 font-medium">Monitoramento em Tempo Real do TP01</p>
-        </div>
-        <div id="status-indicator" class="flex items-center text-sm font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
-            <span class="relative flex h-2 w-2 mr-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            Conectado
-        </div>
-    </header>
+<body class="p-8">
 
-    <div class="main-container">
-        <!-- Barra Lateral -->
-        <div class="sidebar">
-            <div class="legend-container">
-                <div class="legend-item"><div class="shape-producer"></div><span>producer</span></div>
-                <div class="legend-item"><div class="shape-nats"></div><span>NATS</span></div>
-                <div class="legend-item"><div class="shape-queue"></div><span>queue group</span></div>
-                <div class="legend-item"><div class="shape-consumer"></div><span>worker</span></div>
+    <div class="max-w-6xl mx-auto">
+        <!-- Cabeçalho -->
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-extrabold text-green-400 mb-2">
+                NATS Core - E-commerce
+            </h1>
+            <p class="text-slate-400 text-lg">Simulador de Sistemas Distribuídos Orientado a Eventos (TP1)</p>
+        </header>
+
+        <!-- Cards de Métricas Globais -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="solid-card p-6 rounded-xl text-center shadow-md">
+                <h3 class="text-slate-300 font-semibold mb-1">Taxa de Publicação (In)</h3>
+                <p class="text-3xl font-bold text-blue-400"><span id="pub-rate">0</span> <span class="text-sm text-slate-500">msg/s</span></p>
             </div>
+            <div class="solid-card p-6 rounded-xl text-center shadow-md">
+                <h3 class="text-slate-300 font-semibold mb-1">Taxa de Entrega (Out)</h3>
+                <p class="text-3xl font-bold text-green-400"><span id="del-rate">0</span> <span class="text-sm text-slate-500">msg/s</span></p>
+            </div>
+        </div>
+
+        <!-- Painel Central: Controles e Topologia -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <div class="interactive-panel">
-                <h2 class="text-lg font-bold text-slate-800 border-b border-slate-300 pb-2">Painel Interativo</h2>
+            <!-- Controles Manuais -->
+            <div class="solid-card p-6 rounded-xl shadow-md flex flex-col justify-center space-y-4">
+                <h2 class="text-xl font-bold text-white mb-2 border-b border-slate-600 pb-2">Painel de Disparo</h2>
+                <p class="text-sm text-slate-400 mb-4">Envie eventos individuais para testar o roteamento do NATS e os Queue Groups.</p>
                 
-                <!-- Produzir -->
-                <div class="bg-white p-3 rounded shadow-sm border border-slate-200">
-                    <h3 class="text-sm font-semibold text-emerald-700 mb-2 flex justify-between">
-                        <span>📤 Produzir Mensagens</span>
-                    </h3>
-                    <div class="flex flex-col gap-2">
-                        <label class="text-xs text-slate-600 font-medium">Subject Destino</label>
-                        <select id="prod-queue" class="border rounded p-1 text-sm outline-none focus:border-emerald-500 bg-white">
-                            <option value="orders.payment">Pagamento</option>
-                            <option value="orders.stock">Estoque</option>
-                            <option value="orders.notification">Notificação</option>
-                        </select>
-                        <button onclick="sendProduce()" class="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-1.5 rounded transition">Enviar 1 Mensagem</button>
-                    </div>
-                </div>
+                <button onclick="dispararPedido('orders.payment')" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition shadow-sm">
+                    + Evento: Pagamento
+                </button>
+                
+                <button onclick="dispararPedido('orders.stock')" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold transition shadow-sm">
+                    + Evento: Estoque
+                </button>
+                
+                <button onclick="dispararPedido('orders.notification')" class="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold transition shadow-sm">
+                    + Evento: Notificação
+                </button>
 
-                <!-- Consumir -->
-                <div class="bg-white p-3 rounded shadow-sm border border-slate-200">
-                    <h3 class="text-sm font-semibold text-amber-700 mb-2">📥 Consumir Mensagens</h3>
-                    <div class="flex flex-col gap-2">
-                        <p class="text-xs text-slate-500 leading-relaxed mb-1">
-                            O NATS Core utiliza arquitetura <b>Push</b> em tempo real. Não há retenção de filas.
-                        </p>
-                        <button onclick="sendConsume()" class="mt-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold py-1.5 rounded transition">Info de Consumo</button>
-                    </div>
-                </div>
+                <div id="status-box" class="mt-4 text-center text-sm font-medium h-6 text-green-400"></div>
             </div>
-        </div>
 
-        <!-- Área Principal: Gráfico de Rede -->
-        <div class="network-container">
-            <div id="network"></div>
+            <!-- Grafo da Topologia -->
+            <div class="lg:col-span-2">
+                <div id="mynetwork"></div>
+            </div>
         </div>
     </div>
 
+    <!-- Script de Lógica e Renderização -->
     <script>
-        // Configuração dos Nós (Nodes)
-        const nodes = new vis.DataSet([
-            { id: 'producer', label: 'producer', shape: 'circle', color: { background: '#5eead4', border: '#0f766e' }, font: { face: 'Inter', size: 14 }, level: 0 },
-            { id: 'nats_server', label: 'NATS Server\n(Core)', shape: 'diamond', color: { background: '#3b82f6', border: '#1d4ed8' }, font: { face: 'Inter', size: 14, color: 'white' }, level: 1, size: 25 },
-            
-            // Queue Groups (Substituem as Filas)
-            { id: 'q_payment', label: 'Queue Group:\norders.payment\nWorkers: 0', shape: 'box', color: { background: '#7dd3fc', border: '#0284c7' }, font: { face: 'Inter', size: 14 }, margin: 10, level: 2 },
-            { id: 'q_stock', label: 'Queue Group:\norders.stock\nWorkers: 0', shape: 'box', color: { background: '#7dd3fc', border: '#0284c7' }, font: { face: 'Inter', size: 14 }, margin: 10, level: 2 },
-            { id: 'q_notification', label: 'Queue Group:\norders.notification\nWorkers: 0', shape: 'box', color: { background: '#7dd3fc', border: '#0284c7' }, font: { face: 'Inter', size: 14 }, margin: 10, level: 2 },
-            
-            // Consumidores (inicialmente invisíveis)
-            { id: 'c_payment', label: 'workers ativas', shape: 'star', color: { background: '#fde047', border: '#854d0e' }, font: { face: 'Inter', size: 14 }, hidden: true, size: 20, level: 3 },
-            { id: 'c_stock', label: 'workers ativas', shape: 'star', color: { background: '#fde047', border: '#854d0e' }, font: { face: 'Inter', size: 14 }, hidden: true, size: 20, level: 3 },
-            { id: 'c_notification', label: 'workers ativas', shape: 'star', color: { background: '#fde047', border: '#854d0e' }, font: { face: 'Inter', size: 14 }, hidden: true, size: 20, level: 3 }
-        ]);
-
-        // Configuração das Conexões (Edges)
-        const edges = new vis.DataSet([
-            { id: 'e_prod_ex', from: 'producer', to: 'nats_server', arrows: 'to', color: { color: '#000000' }, width: 2 },
-            
-            // Ligações NATS -> Queue Groups
-            { id: 'e_ex_pay', from: 'nats_server', to: 'q_payment', label: 'order.payment.*', arrows: 'to', color: { color: '#000000' }, font: { align: 'top', face: 'Inter' } },
-            { id: 'e_ex_stk', from: 'nats_server', to: 'q_stock', label: 'order.stock.*', arrows: 'to', color: { color: '#000000' }, font: { align: 'top', face: 'Inter' } },
-            { id: 'e_ex_not', from: 'nats_server', to: 'q_notification', label: 'order.notify.*', arrows: 'to', color: { color: '#000000' }, font: { align: 'top', face: 'Inter' } },
-            
-            // Ligações Queue Groups -> Consumers
-            { id: 'e_pay_c', from: 'q_payment', to: 'c_payment', arrows: 'to', color: { color: '#000000' } },
-            { id: 'e_stk_c', from: 'q_stock', to: 'c_stock', arrows: 'to', color: { color: '#000000' } },
-            { id: 'e_not_c', from: 'q_notification', to: 'c_notification', arrows: 'to', color: { color: '#000000' } }
-        ]);
-
-        // Configuração da Rede Vis.js
-        const container = document.getElementById('network');
-        const data = { nodes: nodes, edges: edges };
-        const options = {
-            layout: {
-                hierarchical: {
-                    direction: 'LR',
-                    sortMethod: 'directed',
-                    levelSeparation: 250,
-                    nodeSpacing: 100
-                }
-            },
-            physics: false,
-            interaction: { dragNodes: true, zoomView: true, dragView: true },
-            edges: { smooth: false } // Linhas retas puras para animação
+        // ── Configuração do Vis.js ──
+        const nodeOptions = {
+            borderWidth: 2,
+            font: { color: '#ffffff', face: 'Inter' }
         };
 
+        const nodes = new vis.DataSet([
+            { id: 'prod', label: 'Vitrine\n(Produtor)', shape: 'box', color: { background: '#334155', border: '#3b82f6' }, ...nodeOptions },
+            { id: 'nats', label: 'NATS Core\n(Em Memória)', shape: 'ellipse', color: { background: '#064e3b', border: '#10b981' }, font: {size: 16, color: '#fff', bold: true} },
+            { id: 'pay', label: 'Subject: pagamento\n(0 workers)', shape: 'box', color: { background: '#334155', border: '#f59e0b' }, ...nodeOptions },
+            { id: 'stock', label: 'Subject: estoque\n(0 workers)', shape: 'box', color: { background: '#334155', border: '#f59e0b' }, ...nodeOptions },
+            { id: 'notif', label: 'Subject: notificacao\n(0 workers)', shape: 'box', color: { background: '#334155', border: '#f59e0b' }, ...nodeOptions }
+        ]);
+
+        const edges = new vis.DataSet([
+            { id: 'e1', from: 'prod', to: 'nats', arrows: 'to', color: { color: '#64748b' }, width: 2 },
+            { id: 'e2', from: 'nats', to: 'pay', arrows: 'to', color: { color: '#64748b' }, width: 2 },
+            { id: 'e3', from: 'nats', to: 'stock', arrows: 'to', color: { color: '#64748b' }, width: 2 },
+            { id: 'e4', from: 'nats', to: 'notif', arrows: 'to', color: { color: '#64748b' }, width: 2 }
+        ]);
+
+        const container = document.getElementById('mynetwork');
+        const data = { nodes: nodes, edges: edges };
+        const options = {
+            physics: {
+                solver: 'repulsion',
+                repulsion: { nodeDistance: 150 }
+            },
+            layout: { hierarchical: { direction: 'LR', sortMethod: 'directed', levelSeparation: 250 } }
+        };
         const network = new vis.Network(container, data, options);
 
-        // --- SISTEMA DE ANIMAÇÃO DE BOLINHAS ---
-        let particles = [];
+        // ── Consumo de Métricas via SSE ──
+        const eventSource = new EventSource("/stream");
         
-        function spawnParticle(fromId, toId, color) {
-            particles.push({
-                from: fromId,
-                to: toId,
-                progress: 0,
-                color: color,
-                speed: 0.01 + Math.random() * 0.02
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if(data.error) {
+                console.error("Erro no servidor:", data.error);
+                return;
+            }
+
+            // Atualiza as métricas globais
+            document.getElementById('pub-rate').innerText = Math.round(data.publish_rate);
+            document.getElementById('del-rate').innerText = Math.round(data.deliver_rate);
+
+            // Atualiza o texto dos nós
+            const payData = data.queues["orders.payment"];
+            const stockData = data.queues["orders.stock"];
+            const notifData = data.queues["orders.notification"];
+
+            nodes.update({ id: 'pay', label: `Subject: pagamento\n(${payData.consumers} workers)` });
+            nodes.update({ id: 'stock', label: `Subject: estoque\n(${stockData.consumers} workers)` });
+            nodes.update({ id: 'notif', label: `Subject: notificacao\n(${notifData.consumers} workers)` });
+
+            // Anima as setas se houver tráfego
+            animarLinha('e1', data.publish_rate > 0);
+            animarLinha('e2', payData.deliver_rate > 0);
+            animarLinha('e3', stockData.deliver_rate > 0);
+            animarLinha('e4', notifData.deliver_rate > 0);
+        };
+
+        function animarLinha(edgeId, ativo) {
+            edges.update({ 
+                id: edgeId, 
+                dashes: ativo, 
+                color: { color: ativo ? '#10b981' : '#64748b' },
+                width: ativo ? 3 : 2
             });
         }
 
-        network.on("afterDrawing", function (ctx) {
-            const pos = network.getPositions();
-            for (let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i];
-                p.progress += p.speed;
-                if (p.progress >= 1) {
-                    particles.splice(i, 1);
-                    continue;
+        // ── Função de Disparo via Botões ──
+        function dispararPedido(filaAlvo) {
+            fetch('/api/produce', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ count: 1, queue: filaAlvo })
+            })
+            .then(res => res.json())
+            .then(data => {
+                const statusBox = document.getElementById('status-box');
+                if(data.error) {
+                    statusBox.className = "mt-4 text-center text-sm font-medium h-6 text-red-400";
+                    statusBox.innerText = data.error;
+                } else {
+                    statusBox.className = "mt-4 text-center text-sm font-medium h-6 text-green-400";
+                    statusBox.innerText = "Evento publicado com sucesso!";
                 }
-                
-                let pos1 = pos[p.from];
-                let pos2 = pos[p.to];
-                if (!pos1 || !pos2) continue;
-
-                let x = pos1.x + (pos2.x - pos1.x) * p.progress;
-                let y = pos1.y + (pos2.y - pos1.y) * p.progress;
-
-                ctx.beginPath();
-                ctx.arc(x, y, 5, 0, 2 * Math.PI, false);
-                ctx.fillStyle = p.color;
-                ctx.fill();
-                ctx.lineWidth = 1;
-                ctx.strokeStyle = "#1e293b";
-                ctx.stroke();
-            }
-        });
-
-        function animate() {
-            if (particles.length > 0) network.redraw();
-            requestAnimationFrame(animate);
-        }
-        animate();
-        // ----------------------------------------
-
-        // SSE: Recebendo dados em tempo real
-        const eventSource = new EventSource("/stream");
-        const statusInd = document.getElementById('status-indicator');
-
-        function updateQueueStatus(queueName, nodeId, consumerId, queuesData) {
-            const qData = queuesData[queueName];
-            if (qData) {
-                const consumersCount = qData.consumers || 0;
-                
-                nodes.update({ id: nodeId, label: 'Queue Group:\n' + queueName + '\nWorkers: ' + consumersCount });
-                
-                if (consumersCount > 0 && consumerId) {
-                    nodes.update({ id: consumerId, hidden: false, label: consumersCount + ' worker(s)\nprocessando' });
-                } else if(consumerId) {
-                    nodes.update({ id: consumerId, hidden: true });
-                }
-            }
-        }
-
-        eventSource.onmessage = function(event) {
-            const result = JSON.parse(event.data);
-            
-            if (result.error) {
-                statusInd.classList.replace('text-emerald-600', 'text-amber-600');
-                statusInd.classList.replace('bg-emerald-50', 'bg-amber-50');
-                statusInd.classList.replace('border-emerald-200', 'border-amber-200');
-                statusInd.innerHTML = `<span class="h-2 w-2 mr-2 rounded-full bg-amber-500"></span> API Offline`;
-                return;
-            } else {
-                statusInd.classList.replace('text-amber-600', 'text-emerald-600');
-                statusInd.classList.replace('text-red-600', 'text-emerald-600');
-                statusInd.classList.replace('bg-amber-50', 'bg-emerald-50');
-                statusInd.classList.replace('bg-red-50', 'bg-emerald-50');
-                statusInd.classList.replace('border-amber-200', 'border-emerald-200');
-                statusInd.classList.replace('border-red-200', 'border-emerald-200');
-                statusInd.innerHTML = `<span class="relative flex h-2 w-2 mr-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span> Conectado`;
-            }
-
-            if (result.status === "ok" && result.queues) {
-                updateQueueStatus('orders.payment', 'q_payment', 'c_payment', result.queues);
-                updateQueueStatus('orders.stock', 'q_stock', 'c_stock', result.queues);
-                updateQueueStatus('orders.notification', 'q_notification', 'c_notification', result.queues);
-                
-                // --- GERAÇÃO DE BOLINHAS BASEADO NAS TAXAS ---
-                const queueMapping = {
-                    'orders.payment': { q: 'q_payment', c: 'c_payment' },
-                    'orders.stock': { q: 'q_stock', c: 'c_stock' },
-                    'orders.notification': { q: 'q_notification', c: 'c_notification' }
-                };
-
-                for (const [qName, qData] of Object.entries(result.queues)) {
-                    if (queueMapping[qName]) {
-                        const ids = queueMapping[qName];
-                        
-                        // Bolinhas de entrada: Produtor -> NATS -> Queue Group
-                        if (qData.publish_rate > 0) {
-                            let amount = Math.min(Math.floor(qData.publish_rate / 10) + 1, 3);
-                            for(let i=0; i<amount; i++) {
-                                spawnParticle('producer', 'nats_server', '#5eead4');
-                                spawnParticle('nats_server', ids.q, '#3b82f6'); 
-                            }
-                        }
-
-                        // Bolinhas de saída: Queue Group -> Worker
-                        if (qData.deliver_rate > 0 && !nodes.get(ids.c).hidden) {
-                            let amount = Math.min(Math.floor(qData.deliver_rate / 10) + 1, 3);
-                            for(let i=0; i<amount; i++) {
-                                spawnParticle(ids.q, ids.c, '#fde047');
-                            }
-                        }
-                    }
-                }
-            }
-        };
-
-        eventSource.onerror = function() {
-            statusInd.classList.replace('text-emerald-600', 'text-red-600');
-            statusInd.classList.replace('bg-emerald-50', 'bg-red-50');
-            statusInd.classList.replace('border-emerald-200', 'border-red-200');
-            statusInd.innerHTML = `<span class="h-2 w-2 mr-2 rounded-full bg-red-500"></span> Conexão Perdida`;
-        };
-
-        async function sendProduce() {
-            const count = 1;
-            const queue = document.getElementById('prod-queue').value;
-            try {
-                const res = await fetch('/api/produce', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ count: parseInt(count), queue: queue })
-                });
-                if(!res.ok) alert('Erro ao produzir mensagens');
-            } catch(e) { console.error(e); }
-        }
-
-        async function sendConsume() {
-            try {
-                const res = await fetch('/api/consume', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({})
-                });
-                const data = await res.json();
-                alert(data.message);
-            } catch(e) { console.error(e); }
+                setTimeout(() => statusBox.innerText = "", 2500);
+            });
         }
     </script>
 </body>
