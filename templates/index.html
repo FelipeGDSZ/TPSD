@@ -1,305 +1,1153 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NATS Topology Map</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#08111f">
+    <title>Pulse — NATS Operations</title>
     <style>
-        body { background-color: #ffffff; color: #1e293b; font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; }
-        header { padding: 1rem 2rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background-color: #f8fafc; }
-        .main-container { display: flex; flex: 1; overflow: hidden; }
-        .sidebar { width: 280px; border-right: 2px solid #1e293b; display: flex; flex-direction: column; background: #f8fafc; overflow-y: auto; flex-shrink: 0; }
-        .legend-container { padding: 1.5rem 0; display: flex; flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #e2e8f0; background: #ffffff; }
-        .interactive-panel { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
-        .network-container { flex: 1; position: relative; background-color: #ffffff; }
-        #network { width: 100%; height: 100%; }
-        
-        /* Legend Shapes */
-        .legend-item { display: flex; flex-direction: column; align-items: center; font-size: 0.8rem; font-weight: 600; color: #0f172a; gap: 0.5rem; text-align: center; }
-        .shape-nats { width: 22px; height: 22px; background-color: #3b82f6; border: 2px solid #1d4ed8; transform: rotate(45deg); margin-bottom: 4px; }
-        .shape-queue { width: 32px; height: 20px; background-color: #7dd3fc; border: 2px solid #0284c7; border-radius: 3px; }
-        .shape-producer { width: 26px; height: 26px; border-radius: 50%; background-color: #5eead4; border: 2px solid #0f766e; }
-        .shape-consumer { 
-            width: 28px; height: 28px; background-color: #fde047; border: 2px solid #854d0e; 
-            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        :root {
+            color-scheme: dark;
+            --bg: #07101d;
+            --surface: #0d1929;
+            --surface-strong: #122238;
+            --surface-soft: #0a1524;
+            --line: rgba(148, 163, 184, 0.16);
+            --line-strong: rgba(148, 163, 184, 0.28);
+            --text: #f4f7fb;
+            --muted: #8fa1b8;
+            --cyan: #39d4d8;
+            --cyan-soft: rgba(57, 212, 216, 0.12);
+            --orange: #ff9f43;
+            --orange-soft: rgba(255, 159, 67, 0.12);
+            --green: #49d17d;
+            --red: #ff667a;
+            --purple: #a78bfa;
+            --radius: 18px;
+            --shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
         }
-        
-        @media (max-width: 768px) {
-            .main-container { flex-direction: column-reverse; overflow-y: auto; }
-            .sidebar { width: 100%; border-right: none; border-top: 2px solid #1e293b; overflow-y: visible; }
-            .network-container { height: 350px; flex: none; }
-            header { flex-direction: column; gap: 0.5rem; text-align: center; }
-            #network { height: 350px; }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            min-height: 100%;
+            background: var(--bg);
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 12% 4%, rgba(57, 212, 216, 0.09), transparent 28rem),
+                radial-gradient(circle at 88% 0%, rgba(167, 139, 250, 0.08), transparent 30rem),
+                var(--bg);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        button {
+            font: inherit;
+        }
+
+        .app-shell {
+            width: min(1500px, 100%);
+            min-height: 100vh;
+            margin: 0 auto;
+            padding: 22px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            padding: 10px 2px 26px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-mark {
+            position: relative;
+            display: grid;
+            width: 44px;
+            height: 44px;
+            place-items: center;
+            border: 1px solid rgba(57, 212, 216, 0.34);
+            border-radius: 14px;
+            background: linear-gradient(145deg, rgba(57, 212, 216, 0.2), rgba(57, 212, 216, 0.04));
+            box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+        }
+
+        .brand-mark::before,
+        .brand-mark::after {
+            position: absolute;
+            width: 16px;
+            height: 5px;
+            border: 2px solid var(--cyan);
+            border-right: 0;
+            border-left: 0;
+            content: "";
+            transform: skewX(-28deg);
+        }
+
+        .brand-mark::before {
+            top: 13px;
+        }
+
+        .brand-mark::after {
+            bottom: 13px;
+        }
+
+        .brand-copy strong {
+            display: block;
+            font-size: 1.05rem;
+            letter-spacing: 0.12em;
+            line-height: 1;
+            text-transform: uppercase;
+        }
+
+        .brand-copy span {
+            display: block;
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 0.72rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .connection-state {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .last-update {
+            color: var(--muted);
+            font-size: 0.78rem;
+            text-align: right;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            min-width: 128px;
+            padding: 9px 13px;
+            border: 1px solid rgba(73, 209, 125, 0.28);
+            border-radius: 999px;
+            color: #a7f3c2;
+            background: rgba(73, 209, 125, 0.09);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .status-pill[data-state="warning"] {
+            border-color: rgba(255, 159, 67, 0.32);
+            color: #ffd2a4;
+            background: var(--orange-soft);
+        }
+
+        .status-pill[data-state="offline"] {
+            border-color: rgba(255, 102, 122, 0.32);
+            color: #ffb4bf;
+            background: rgba(255, 102, 122, 0.1);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 0 5px rgba(73, 209, 125, 0.1);
+        }
+
+        .status-pill[data-state="online"] .status-dot {
+            animation: breathe 1.8s ease-in-out infinite;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 330px;
+            gap: 18px;
+        }
+
+        .main-column {
+            display: grid;
+            min-width: 0;
+            gap: 18px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .metric-card,
+        .panel {
+            border: 1px solid var(--line);
+            background: linear-gradient(155deg, rgba(18, 34, 56, 0.96), rgba(10, 21, 36, 0.96));
+            box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
+        }
+
+        .metric-card {
+            min-height: 126px;
+            padding: 19px;
+            border-radius: 16px;
+        }
+
+        .metric-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            color: var(--muted);
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+        }
+
+        .metric-icon {
+            display: grid;
+            width: 28px;
+            height: 28px;
+            place-items: center;
+            border-radius: 9px;
+            color: var(--cyan);
+            background: var(--cyan-soft);
+            font-size: 0.9rem;
+        }
+
+        .metric-card:nth-child(2) .metric-icon {
+            color: var(--orange);
+            background: var(--orange-soft);
+        }
+
+        .metric-card:nth-child(3) .metric-icon {
+            color: var(--purple);
+            background: rgba(167, 139, 250, 0.12);
+        }
+
+        .metric-value {
+            margin-top: 16px;
+            font-size: clamp(1.55rem, 2vw, 2.15rem);
+            font-weight: 750;
+            letter-spacing: -0.045em;
+        }
+
+        .metric-unit {
+            margin-left: 5px;
+            color: var(--muted);
+            font-size: 0.76rem;
+            font-weight: 600;
+            letter-spacing: 0;
+        }
+
+        .metric-footnote {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 0.72rem;
+        }
+
+        .panel {
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 22px 24px 0;
+        }
+
+        .eyebrow {
+            margin: 0 0 7px;
+            color: var(--cyan);
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin-top: 0;
+        }
+
+        h1 {
+            margin-bottom: 0;
+            font-size: clamp(1.45rem, 2vw, 2rem);
+            letter-spacing: -0.035em;
+        }
+
+        h2 {
+            margin-bottom: 5px;
+            font-size: 1.05rem;
+            letter-spacing: -0.015em;
+        }
+
+        .panel-subtitle {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.82rem;
+            line-height: 1.55;
+        }
+
+        .mode-chip {
+            flex: 0 0 auto;
+            padding: 7px 10px;
+            border: 1px solid var(--line-strong);
+            border-radius: 8px;
+            color: #bdc9d8;
+            background: rgba(255, 255, 255, 0.025);
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 0.67rem;
+            letter-spacing: 0.05em;
+        }
+
+        .pipeline {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(145px, 1fr));
+            align-items: stretch;
+            padding: 36px 24px 28px;
+            overflow-x: auto;
+        }
+
+        .stage-wrap {
+            position: relative;
+            display: flex;
+            min-width: 145px;
+            align-items: stretch;
+        }
+
+        .stage-wrap:not(:last-child)::after {
+            position: absolute;
+            top: 50%;
+            right: -1px;
+            width: 30px;
+            height: 1px;
+            content: "";
+            background: var(--line-strong);
+            transform: translate(50%, -50%);
+            z-index: 1;
+        }
+
+        .flow-pulse {
+            position: absolute;
+            top: calc(50% - 4px);
+            right: -16px;
+            display: none;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--cyan);
+            box-shadow: 0 0 16px var(--cyan);
+            z-index: 3;
+        }
+
+        .stage-wrap.flowing .flow-pulse {
+            display: block;
+            animation: travel 0.75s ease-in-out both;
+        }
+
+        .stage {
+            position: relative;
+            width: calc(100% - 18px);
+            min-height: 188px;
+            padding: 18px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: rgba(6, 15, 27, 0.62);
+            transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+            z-index: 2;
+        }
+
+        .stage:hover {
+            border-color: var(--line-strong);
+            transform: translateY(-2px);
+        }
+
+        .stage.active {
+            border-color: rgba(57, 212, 216, 0.52);
+            box-shadow: 0 0 0 3px rgba(57, 212, 216, 0.08), 0 14px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .stage-index {
+            color: #63758e;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 0.66rem;
+            font-weight: 700;
+        }
+
+        .stage-symbol {
+            display: grid;
+            width: 42px;
+            height: 42px;
+            margin: 17px 0 20px;
+            place-items: center;
+            border: 1px solid rgba(57, 212, 216, 0.24);
+            border-radius: 13px;
+            color: var(--cyan);
+            background: var(--cyan-soft);
+            font-weight: 850;
+        }
+
+        .stage-wrap:nth-child(2) .stage-symbol {
+            color: var(--orange);
+            border-color: rgba(255, 159, 67, 0.24);
+            background: var(--orange-soft);
+        }
+
+        .stage-wrap:nth-child(3) .stage-symbol {
+            color: var(--purple);
+            border-color: rgba(167, 139, 250, 0.24);
+            background: rgba(167, 139, 250, 0.12);
+        }
+
+        .stage-wrap:nth-child(4) .stage-symbol {
+            color: var(--green);
+            border-color: rgba(73, 209, 125, 0.24);
+            background: rgba(73, 209, 125, 0.1);
+        }
+
+        .stage-name {
+            margin-bottom: 5px;
+            font-size: 0.95rem;
+            font-weight: 750;
+        }
+
+        .stage-subject {
+            overflow: hidden;
+            color: var(--muted);
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 0.63rem;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .worker-state {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 17px;
+            padding-top: 13px;
+            border-top: 1px solid var(--line);
+            color: var(--muted);
+            font-size: 0.72rem;
+        }
+
+        .worker-count {
+            color: var(--text);
+            font-weight: 750;
+        }
+
+        .mini-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mini-status::before {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--red);
+            content: "";
+        }
+
+        .mini-status.online::before {
+            background: var(--green);
+            box-shadow: 0 0 9px rgba(73, 209, 125, 0.6);
+        }
+
+        .side-column {
+            display: grid;
+            align-content: start;
+            gap: 18px;
+        }
+
+        .control-panel {
+            padding-bottom: 22px;
+        }
+
+        .control-body {
+            padding: 24px;
+        }
+
+        .journey {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin: 2px 0 22px;
+            color: var(--muted);
+            font-size: 0.7rem;
+        }
+
+        .journey span {
+            padding: 6px 8px;
+            border-radius: 7px;
+            background: rgba(255, 255, 255, 0.035);
+        }
+
+        .journey i {
+            color: #53647a;
+            font-style: normal;
+        }
+
+        .primary-button {
+            position: relative;
+            display: flex;
+            width: 100%;
+            min-height: 52px;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            overflow: hidden;
+            border: 0;
+            border-radius: 13px;
+            color: #061317;
+            background: linear-gradient(115deg, #55e3df, #38c8d0);
+            box-shadow: 0 10px 30px rgba(57, 212, 216, 0.2);
+            cursor: pointer;
+            font-weight: 850;
+            transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+        }
+
+        .primary-button:hover:not(:disabled) {
+            box-shadow: 0 13px 36px rgba(57, 212, 216, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .primary-button:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .primary-button:disabled {
+            cursor: wait;
+            opacity: 0.6;
+        }
+
+        .button-arrow {
+            font-size: 1.2rem;
+            transition: transform 160ms ease;
+        }
+
+        .primary-button:hover .button-arrow {
+            transform: translateX(3px);
+        }
+
+        .core-note {
+            display: flex;
+            gap: 11px;
+            margin: 17px 0 0;
+            padding: 13px;
+            border: 1px solid rgba(255, 159, 67, 0.17);
+            border-radius: 11px;
+            color: #c8b49e;
+            background: rgba(255, 159, 67, 0.055);
+            font-size: 0.72rem;
+            line-height: 1.55;
+        }
+
+        .core-note strong {
+            color: #ffd1a4;
+        }
+
+        .activity-panel {
+            overflow: hidden;
+        }
+
+        .activity-list {
+            display: grid;
+            max-height: 315px;
+            margin: 18px 0 0;
+            padding: 0 22px 18px;
+            overflow-y: auto;
+            list-style: none;
+        }
+
+        .activity-item {
+            display: grid;
+            grid-template-columns: 9px 1fr auto;
+            gap: 11px;
+            align-items: start;
+            padding: 13px 0;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .activity-item:last-child {
+            border-bottom: 0;
+        }
+
+        .activity-marker {
+            width: 7px;
+            height: 7px;
+            margin-top: 5px;
+            border-radius: 50%;
+            background: var(--cyan);
+            box-shadow: 0 0 10px rgba(57, 212, 216, 0.5);
+        }
+
+        .activity-marker.warning {
+            background: var(--orange);
+            box-shadow: 0 0 10px rgba(255, 159, 67, 0.45);
+        }
+
+        .activity-marker.error {
+            background: var(--red);
+            box-shadow: 0 0 10px rgba(255, 102, 122, 0.45);
+        }
+
+        .activity-message {
+            color: #c8d3e1;
+            font-size: 0.75rem;
+            line-height: 1.45;
+        }
+
+        .activity-time {
+            color: #65778f;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 0.62rem;
+        }
+
+        .empty-activity {
+            padding: 24px 0;
+            color: var(--muted);
+            font-size: 0.76rem;
+            text-align: center;
+        }
+
+        .toast {
+            position: fixed;
+            right: 22px;
+            bottom: 22px;
+            max-width: min(370px, calc(100vw - 44px));
+            padding: 14px 17px;
+            border: 1px solid rgba(73, 209, 125, 0.25);
+            border-radius: 12px;
+            color: #c9f8da;
+            background: rgba(12, 38, 28, 0.96);
+            box-shadow: var(--shadow);
+            font-size: 0.8rem;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(12px);
+            transition: opacity 180ms ease, transform 180ms ease;
+            z-index: 10;
+        }
+
+        .toast.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.error {
+            border-color: rgba(255, 102, 122, 0.28);
+            color: #ffd1d7;
+            background: rgba(49, 18, 26, 0.97);
+        }
+
+        @keyframes breathe {
+            50% {
+                box-shadow: 0 0 0 7px rgba(73, 209, 125, 0.02);
+                opacity: 0.72;
+            }
+        }
+
+        @keyframes travel {
+            from {
+                opacity: 0;
+                transform: translateX(-24px) scale(0.6);
+            }
+            25% {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+                transform: translateX(24px) scale(1);
+            }
+        }
+
+        @media (max-width: 1080px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .side-column {
+                grid-template-columns: minmax(280px, 0.8fr) minmax(320px, 1.2fr);
+            }
+        }
+
+        @media (max-width: 760px) {
+            .app-shell {
+                padding: 15px;
+            }
+
+            .topbar,
+            .connection-state {
+                align-items: flex-start;
+            }
+
+            .topbar {
+                flex-direction: column;
+            }
+
+            .last-update {
+                text-align: left;
+            }
+
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .pipeline {
+                grid-template-columns: repeat(4, 190px);
+            }
+
+            .side-column {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 430px) {
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .panel-header {
+                padding-right: 18px;
+                padding-left: 18px;
+            }
+
+            .control-body {
+                padding: 20px 18px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                scroll-behavior: auto !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
 </head>
 <body>
-    <header>
-        <div>
-            <h1 class="text-2xl font-bold text-slate-800">Mapa Topológico NATS</h1>
-            <p class="text-sm text-slate-500 font-medium">Monitoramento em Tempo Real do TP01</p>
-        </div>
-        <div id="status-indicator" class="flex items-center text-sm font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
-            <span class="relative flex h-2 w-2 mr-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            Conectado
-        </div>
-    </header>
-
-    <div class="main-container">
-        <!-- Barra Lateral -->
-        <div class="sidebar">
-            <div class="legend-container">
-                <div class="legend-item"><div class="shape-producer"></div><span>producer</span></div>
-                <div class="legend-item"><div class="shape-nats"></div><span>NATS</span></div>
-                <div class="legend-item"><div class="shape-queue"></div><span>queue group</span></div>
-                <div class="legend-item"><div class="shape-consumer"></div><span>worker</span></div>
-            </div>
-            
-            <div class="interactive-panel">
-                <h2 class="text-lg font-bold text-slate-800 border-b border-slate-300 pb-2">Painel Interativo</h2>
-                
-                <!-- Produzir -->
-                <div class="bg-white p-3 rounded shadow-sm border border-slate-200">
-                    <h3 class="text-sm font-semibold text-emerald-700 mb-2 flex justify-between">
-                        <span>📤 Produzir Mensagens</span>
-                    </h3>
-                    <div class="flex flex-col gap-2">
-                        <label class="text-xs text-slate-600 font-medium">Início do fluxo E2E</label>
-                        <select id="prod-queue" class="border rounded p-1 text-sm outline-none focus:border-emerald-500 bg-white">
-                            <option value="orders.payment">Pagamento → Estoque → Notificação</option>
-                        </select>
-                        <button onclick="sendProduce()" class="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-1.5 rounded transition">Enviar 1 Mensagem</button>
-                    </div>
+    <main class="app-shell">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true"></div>
+                <div class="brand-copy">
+                    <strong>Pulse</strong>
+                    <span>NATS Operations Console</span>
                 </div>
+            </div>
 
-                <!-- Consumir -->
-                <div class="bg-white p-3 rounded shadow-sm border border-slate-200">
-                    <h3 class="text-sm font-semibold text-amber-700 mb-2">📥 Consumir Mensagens</h3>
-                    <div class="flex flex-col gap-2">
-                        <p class="text-xs text-slate-500 leading-relaxed mb-1">
-                            O NATS Core utiliza arquitetura <b>Push</b> em tempo real. Não há retenção de filas.
+            <div class="connection-state">
+                <div class="last-update">
+                    Última leitura<br>
+                    <strong id="last-update">aguardando dados</strong>
+                </div>
+                <div class="status-pill" id="connection-status" data-state="warning" role="status">
+                    <span class="status-dot"></span>
+                    <span id="connection-label">Conectando</span>
+                </div>
+            </div>
+        </header>
+
+        <section class="dashboard-grid">
+            <div class="main-column">
+                <section class="metrics-grid" aria-label="Resumo de métricas">
+                    <article class="metric-card">
+                        <div class="metric-label">
+                            Publicação
+                            <span class="metric-icon" aria-hidden="true">↑</span>
+                        </div>
+                        <div class="metric-value">
+                            <span id="publish-rate">0.0</span><span class="metric-unit">msg/s</span>
+                        </div>
+                        <div class="metric-footnote">Entrada no servidor NATS</div>
+                    </article>
+
+                    <article class="metric-card">
+                        <div class="metric-label">
+                            Entrega
+                            <span class="metric-icon" aria-hidden="true">→</span>
+                        </div>
+                        <div class="metric-value">
+                            <span id="deliver-rate">0.0</span><span class="metric-unit">msg/s</span>
+                        </div>
+                        <div class="metric-footnote">Saída para subscribers</div>
+                    </article>
+
+                    <article class="metric-card">
+                        <div class="metric-label">
+                            Workers
+                            <span class="metric-icon" aria-hidden="true">●</span>
+                        </div>
+                        <div class="metric-value">
+                            <span id="worker-total">0</span><span class="metric-unit">online</span>
+                        </div>
+                        <div class="metric-footnote">Nas três etapas do pedido</div>
+                    </article>
+
+                    <article class="metric-card">
+                        <div class="metric-label">
+                            Garantia
+                            <span class="metric-icon" aria-hidden="true">C</span>
+                        </div>
+                        <div class="metric-value">Core</div>
+                        <div class="metric-footnote">Entrega at-most-once</div>
+                    </article>
+                </section>
+
+                <section class="panel" aria-labelledby="pipeline-title">
+                    <div class="panel-header">
+                        <div>
+                            <p class="eyebrow">Fluxo em tempo real</p>
+                            <h1 id="pipeline-title">Jornada do pedido</h1>
+                            <p class="panel-subtitle">Cada etapa publica o evento que ativa o próximo serviço.</p>
+                        </div>
+                        <span class="mode-chip">NATS CORE</span>
+                    </div>
+
+                    <div class="pipeline" id="pipeline">
+                        <div class="stage-wrap" data-stage="nats">
+                            <article class="stage">
+                                <span class="stage-index">00 / BROKER</span>
+                                <div class="stage-symbol" aria-hidden="true">N</div>
+                                <div class="stage-name">NATS Server</div>
+                                <div class="stage-subject">nats://nats:4222</div>
+                                <div class="worker-state">
+                                    <span>Transporte</span>
+                                    <span class="mini-status online">ativo</span>
+                                </div>
+                            </article>
+                            <span class="flow-pulse" aria-hidden="true"></span>
+                        </div>
+
+                        <div class="stage-wrap" data-stage="payment">
+                            <article class="stage" id="stage-payment">
+                                <span class="stage-index">01 / PAGAMENTO</span>
+                                <div class="stage-symbol" aria-hidden="true">R$</div>
+                                <div class="stage-name">Autorizar compra</div>
+                                <div class="stage-subject">order.payment.*</div>
+                                <div class="worker-state">
+                                    <span><strong class="worker-count" id="workers-payment">0</strong> worker(s)</span>
+                                    <span class="mini-status" id="status-payment">offline</span>
+                                </div>
+                            </article>
+                            <span class="flow-pulse" aria-hidden="true"></span>
+                        </div>
+
+                        <div class="stage-wrap" data-stage="stock">
+                            <article class="stage" id="stage-stock">
+                                <span class="stage-index">02 / ESTOQUE</span>
+                                <div class="stage-symbol" aria-hidden="true">▦</div>
+                                <div class="stage-name">Reservar produto</div>
+                                <div class="stage-subject">order.stock.*</div>
+                                <div class="worker-state">
+                                    <span><strong class="worker-count" id="workers-stock">0</strong> worker(s)</span>
+                                    <span class="mini-status" id="status-stock">offline</span>
+                                </div>
+                            </article>
+                            <span class="flow-pulse" aria-hidden="true"></span>
+                        </div>
+
+                        <div class="stage-wrap" data-stage="notification">
+                            <article class="stage" id="stage-notification">
+                                <span class="stage-index">03 / NOTIFICAÇÃO</span>
+                                <div class="stage-symbol" aria-hidden="true">✦</div>
+                                <div class="stage-name">Avisar cliente</div>
+                                <div class="stage-subject">order.notify.*</div>
+                                <div class="worker-state">
+                                    <span><strong class="worker-count" id="workers-notification">0</strong> worker(s)</span>
+                                    <span class="mini-status" id="status-notification">offline</span>
+                                </div>
+                            </article>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <aside class="side-column">
+                <section class="panel control-panel" aria-labelledby="control-title">
+                    <div class="panel-header">
+                        <div>
+                            <p class="eyebrow">Ação manual</p>
+                            <h2 id="control-title">Simular pedido</h2>
+                            <p class="panel-subtitle">Dispara uma jornada completa pelo sistema.</p>
+                        </div>
+                    </div>
+
+                    <div class="control-body">
+                        <div class="journey" aria-label="Etapas da simulação">
+                            <span>Pagamento</span><i>›</i>
+                            <span>Estoque</span><i>›</i>
+                            <span>Notificação</span>
+                        </div>
+
+                        <button class="primary-button" id="send-order" type="button">
+                            Iniciar novo pedido
+                            <span class="button-arrow" aria-hidden="true">→</span>
+                        </button>
+
+                        <p class="core-note">
+                            <span aria-hidden="true">!</span>
+                            <span><strong>NATS Core:</strong> os eventos são efêmeros e não ficam armazenados para consumo posterior.</span>
                         </p>
-                        <button onclick="sendConsume()" class="mt-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold py-1.5 rounded transition">Info de Consumo</button>
                     </div>
-                </div>
-            </div>
-        </div>
+                </section>
 
-        <!-- Área Principal: Gráfico de Rede -->
-        <div class="network-container">
-            <div id="network"></div>
-        </div>
-    </div>
+                <section class="panel activity-panel" aria-labelledby="activity-title">
+                    <div class="panel-header">
+                        <div>
+                            <p class="eyebrow">Telemetria local</p>
+                            <h2 id="activity-title">Atividade recente</h2>
+                        </div>
+                    </div>
+                    <ol class="activity-list" id="activity-list" aria-live="polite">
+                        <li class="empty-activity" id="empty-activity">Nenhum evento nesta sessão.</li>
+                    </ol>
+                </section>
+            </aside>
+        </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script>
-        // Configuração dos Nós (Nodes)
-        const nodes = new vis.DataSet([
-            { id: 'producer', label: 'producer', shape: 'circle', color: { background: '#5eead4', border: '#0f766e' }, font: { face: 'Inter', size: 14 }, level: 0 },
-            { id: 'nats_server', label: 'NATS Server\n(Core)', shape: 'diamond', color: { background: '#3b82f6', border: '#1d4ed8' }, font: { face: 'Inter', size: 14, color: 'white' }, level: 1, size: 25 },
-            
-            // Queue Groups (Substituem as Filas)
-            { id: 'q_payment', label: 'Queue Group:\norders.payment\nWorkers: 0', shape: 'box', color: { background: '#7dd3fc', border: '#0284c7' }, font: { face: 'Inter', size: 14 }, margin: 10, level: 2 },
-            { id: 'q_stock', label: 'Queue Group:\norders.stock\nWorkers: 0', shape: 'box', color: { background: '#7dd3fc', border: '#0284c7' }, font: { face: 'Inter', size: 14 }, margin: 10, level: 2 },
-            { id: 'q_notification', label: 'Queue Group:\norders.notification\nWorkers: 0', shape: 'box', color: { background: '#7dd3fc', border: '#0284c7' }, font: { face: 'Inter', size: 14 }, margin: 10, level: 2 },
-            
-            // Consumidores (inicialmente invisíveis)
-            { id: 'c_payment', label: 'workers ativas', shape: 'star', color: { background: '#fde047', border: '#854d0e' }, font: { face: 'Inter', size: 14 }, hidden: true, size: 20, level: 3 },
-            { id: 'c_stock', label: 'workers ativas', shape: 'star', color: { background: '#fde047', border: '#854d0e' }, font: { face: 'Inter', size: 14 }, hidden: true, size: 20, level: 3 },
-            { id: 'c_notification', label: 'workers ativas', shape: 'star', color: { background: '#fde047', border: '#854d0e' }, font: { face: 'Inter', size: 14 }, hidden: true, size: 20, level: 3 }
-        ]);
-
-        // Configuração das Conexões (Edges)
-        const edges = new vis.DataSet([
-            { id: 'e_prod_ex', from: 'producer', to: 'nats_server', arrows: 'to', color: { color: '#000000' }, width: 2 },
-            
-            // Ligações NATS -> Queue Groups
-            { id: 'e_ex_pay', from: 'nats_server', to: 'q_payment', label: 'order.payment.*', arrows: 'to', color: { color: '#000000' }, font: { align: 'top', face: 'Inter' } },
-            { id: 'e_ex_stk', from: 'nats_server', to: 'q_stock', label: 'order.stock.*', arrows: 'to', color: { color: '#000000' }, font: { align: 'top', face: 'Inter' } },
-            { id: 'e_ex_not', from: 'nats_server', to: 'q_notification', label: 'order.notify.*', arrows: 'to', color: { color: '#000000' }, font: { align: 'top', face: 'Inter' } },
-            
-            // Ligações Queue Groups -> Consumers
-            { id: 'e_pay_c', from: 'q_payment', to: 'c_payment', arrows: 'to', color: { color: '#000000' } },
-            { id: 'e_stk_c', from: 'q_stock', to: 'c_stock', arrows: 'to', color: { color: '#000000' } },
-            { id: 'e_not_c', from: 'q_notification', to: 'c_notification', arrows: 'to', color: { color: '#000000' } }
-        ]);
-
-        // Configuração da Rede Vis.js
-        const container = document.getElementById('network');
-        const data = { nodes: nodes, edges: edges };
-        const options = {
-            layout: {
-                hierarchical: {
-                    direction: 'LR',
-                    sortMethod: 'directed',
-                    levelSeparation: 250,
-                    nodeSpacing: 100
-                }
+        const queueConfig = {
+            "orders.payment": {
+                key: "payment",
+                label: "Pagamento"
             },
-            physics: false,
-            interaction: { dragNodes: true, zoomView: true, dragView: true },
-            edges: { smooth: false } // Linhas retas puras para animação
+            "orders.stock": {
+                key: "stock",
+                label: "Estoque"
+            },
+            "orders.notification": {
+                key: "notification",
+                label: "Notificação"
+            }
         };
 
-        const network = new vis.Network(container, data, options);
+        const connectionStatus = document.getElementById("connection-status");
+        const connectionLabel = document.getElementById("connection-label");
+        const lastUpdate = document.getElementById("last-update");
+        const publishRate = document.getElementById("publish-rate");
+        const deliverRate = document.getElementById("deliver-rate");
+        const workerTotal = document.getElementById("worker-total");
+        const sendOrderButton = document.getElementById("send-order");
+        const activityList = document.getElementById("activity-list");
+        const toast = document.getElementById("toast");
 
-        // --- SISTEMA DE ANIMAÇÃO DE BOLINHAS ---
-        let particles = [];
-        
-        function spawnParticle(fromId, toId, color) {
-            particles.push({
-                from: fromId,
-                to: toId,
-                progress: 0,
-                color: color,
-                speed: 0.01 + Math.random() * 0.02
+        let toastTimer = null;
+        let lastTrafficAt = 0;
+        let animationRunning = false;
+
+        function formatRate(value) {
+            const number = Number(value);
+            if (!Number.isFinite(number) || number < 0) {
+                return "0.0";
+            }
+            if (number >= 1000) {
+                return number.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+            }
+            return number.toFixed(1);
+        }
+
+        function setConnectionState(state, label) {
+            connectionStatus.dataset.state = state;
+            connectionLabel.textContent = label;
+        }
+
+        function updateWorker(queueName, data) {
+            const config = queueConfig[queueName];
+            if (!config) {
+                return 0;
+            }
+
+            const count = Number(data?.consumers) || 0;
+            const countElement = document.getElementById(`workers-${config.key}`);
+            const statusElement = document.getElementById(`status-${config.key}`);
+
+            countElement.textContent = String(count);
+            statusElement.textContent = count > 0 ? "online" : "offline";
+            statusElement.classList.toggle("online", count > 0);
+            return count;
+        }
+
+        function addActivity(message, kind = "normal") {
+            document.getElementById("empty-activity")?.remove();
+
+            const item = document.createElement("li");
+            item.className = "activity-item";
+
+            const marker = document.createElement("span");
+            marker.className = `activity-marker ${kind === "normal" ? "" : kind}`;
+
+            const text = document.createElement("span");
+            text.className = "activity-message";
+            text.textContent = message;
+
+            const time = document.createElement("time");
+            time.className = "activity-time";
+            time.textContent = new Date().toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit"
             });
-        }
 
-        network.on("afterDrawing", function (ctx) {
-            const pos = network.getPositions();
-            for (let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i];
-                p.progress += p.speed;
-                if (p.progress >= 1) {
-                    particles.splice(i, 1);
-                    continue;
-                }
-                
-                let pos1 = pos[p.from];
-                let pos2 = pos[p.to];
-                if (!pos1 || !pos2) continue;
+            item.append(marker, text, time);
+            activityList.prepend(item);
 
-                let x = pos1.x + (pos2.x - pos1.x) * p.progress;
-                let y = pos1.y + (pos2.y - pos1.y) * p.progress;
-
-                ctx.beginPath();
-                ctx.arc(x, y, 5, 0, 2 * Math.PI, false);
-                ctx.fillStyle = p.color;
-                ctx.fill();
-                ctx.lineWidth = 1;
-                ctx.strokeStyle = "#1e293b";
-                ctx.stroke();
-            }
-        });
-
-        function animate() {
-            if (particles.length > 0) network.redraw();
-            requestAnimationFrame(animate);
-        }
-        animate();
-        // ----------------------------------------
-
-        // SSE: Recebendo dados em tempo real
-        const eventSource = new EventSource("/stream");
-        const statusInd = document.getElementById('status-indicator');
-
-        function updateQueueStatus(queueName, nodeId, consumerId, queuesData) {
-            const qData = queuesData[queueName];
-            if (qData) {
-                const consumersCount = qData.consumers || 0;
-                
-                nodes.update({ id: nodeId, label: 'Queue Group:\n' + queueName + '\nWorkers: ' + consumersCount });
-                
-                if (consumersCount > 0 && consumerId) {
-                    nodes.update({ id: consumerId, hidden: false, label: consumersCount + ' worker(s)\nprocessando' });
-                } else if(consumerId) {
-                    nodes.update({ id: consumerId, hidden: true });
-                }
+            while (activityList.children.length > 7) {
+                activityList.lastElementChild.remove();
             }
         }
 
-        eventSource.onmessage = function(event) {
-            const result = JSON.parse(event.data);
-            
-            if (result.error) {
-                statusInd.classList.replace('text-emerald-600', 'text-amber-600');
-                statusInd.classList.replace('bg-emerald-50', 'bg-amber-50');
-                statusInd.classList.replace('border-emerald-200', 'border-amber-200');
-                statusInd.innerHTML = `<span class="h-2 w-2 mr-2 rounded-full bg-amber-500"></span> API Offline`;
+        function showToast(message, isError = false) {
+            clearTimeout(toastTimer);
+            toast.textContent = message;
+            toast.classList.toggle("error", isError);
+            toast.classList.add("visible");
+            toastTimer = setTimeout(() => toast.classList.remove("visible"), 3200);
+        }
+
+        function activateStage(name, active) {
+            const stage = document.getElementById(`stage-${name}`);
+            stage?.classList.toggle("active", active);
+        }
+
+        function playJourney() {
+            if (animationRunning) {
                 return;
-            } else {
-                statusInd.classList.replace('text-amber-600', 'text-emerald-600');
-                statusInd.classList.replace('text-red-600', 'text-emerald-600');
-                statusInd.classList.replace('bg-amber-50', 'bg-emerald-50');
-                statusInd.classList.replace('bg-red-50', 'bg-emerald-50');
-                statusInd.classList.replace('border-amber-200', 'border-emerald-200');
-                statusInd.classList.replace('border-red-200', 'border-emerald-200');
-                statusInd.innerHTML = `<span class="relative flex h-2 w-2 mr-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span> Conectado`;
             }
 
-            if (result.status === "ok" && result.queues) {
-                updateQueueStatus('orders.payment', 'q_payment', 'c_payment', result.queues);
-                updateQueueStatus('orders.stock', 'q_stock', 'c_stock', result.queues);
-                updateQueueStatus('orders.notification', 'q_notification', 'c_notification', result.queues);
-                
-                // --- GERAÇÃO DE BOLINHAS BASEADO NAS TAXAS ---
-                const queueMapping = {
-                    'orders.payment': { q: 'q_payment', c: 'c_payment' },
-                    'orders.stock': { q: 'q_stock', c: 'c_stock' },
-                    'orders.notification': { q: 'q_notification', c: 'c_notification' }
-                };
+            animationRunning = true;
+            const steps = [
+                { wrap: "nats", stage: "payment", delay: 0 },
+                { wrap: "payment", stage: "stock", delay: 720 },
+                { wrap: "stock", stage: "notification", delay: 1440 }
+            ];
 
-                for (const [qName, qData] of Object.entries(result.queues)) {
-                    if (queueMapping[qName]) {
-                        const ids = queueMapping[qName];
-                        
-                        // Bolinhas de entrada: Produtor -> NATS -> Queue Group
-                        if (qData.publish_rate > 0) {
-                            let amount = Math.min(Math.floor(qData.publish_rate / 10) + 1, 3);
-                            for(let i=0; i<amount; i++) {
-                                spawnParticle('producer', 'nats_server', '#5eead4');
-                                spawnParticle('nats_server', ids.q, '#3b82f6'); 
-                            }
-                        }
+            for (const step of steps) {
+                setTimeout(() => {
+                    const wrap = document.querySelector(`[data-stage="${step.wrap}"]`);
+                    wrap?.classList.remove("flowing");
+                    void wrap?.offsetWidth;
+                    wrap?.classList.add("flowing");
+                    activateStage(step.stage, true);
 
-                        // Bolinhas de saída: Queue Group -> Worker
-                        if (qData.deliver_rate > 0 && !nodes.get(ids.c).hidden) {
-                            let amount = Math.min(Math.floor(qData.deliver_rate / 10) + 1, 3);
-                            for(let i=0; i<amount; i++) {
-                                spawnParticle(ids.q, ids.c, '#fde047');
-                            }
-                        }
-                    }
+                    setTimeout(() => {
+                        wrap?.classList.remove("flowing");
+                        activateStage(step.stage, false);
+                    }, 760);
+                }, step.delay);
+            }
+
+            setTimeout(() => {
+                animationRunning = false;
+            }, 2350);
+        }
+
+        async function sendOrder() {
+            sendOrderButton.disabled = true;
+            sendOrderButton.firstChild.textContent = "Iniciando pedido ";
+
+            try {
+                const response = await fetch("/api/produce", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        count: 1,
+                        queue: "orders.payment"
+                    })
+                });
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || "Falha ao iniciar pedido.");
                 }
+
+                addActivity("Novo pedido enviado para order.payment.new");
+                showToast(result.message || "Fluxo iniciado com sucesso.");
+                playJourney();
+            } catch (error) {
+                addActivity(error.message, "error");
+                showToast(error.message, true);
+            } finally {
+                sendOrderButton.disabled = false;
+                sendOrderButton.firstChild.textContent = "Iniciar novo pedido ";
+            }
+        }
+
+        sendOrderButton.addEventListener("click", sendOrder);
+
+        const eventSource = new EventSource("/stream");
+
+        eventSource.onopen = () => {
+            setConnectionState("online", "Ao vivo");
+            addActivity("Canal de métricas conectado");
+        };
+
+        eventSource.onmessage = (event) => {
+            let result;
+            try {
+                result = JSON.parse(event.data);
+            } catch {
+                setConnectionState("warning", "Dados inválidos");
+                addActivity("Resposta inválida recebida do monitoramento", "warning");
+                return;
+            }
+
+            if (result.error) {
+                setConnectionState("warning", "NATS indisponível");
+                addActivity("API de monitoramento NATS indisponível", "warning");
+                return;
+            }
+
+            setConnectionState("online", "Ao vivo");
+            lastUpdate.textContent = new Date().toLocaleTimeString("pt-BR");
+            publishRate.textContent = formatRate(result.publish_rate);
+            deliverRate.textContent = formatRate(result.deliver_rate);
+
+            let total = 0;
+            for (const [queueName, config] of Object.entries(queueConfig)) {
+                total += updateWorker(queueName, result.queues?.[queueName] || {});
+            }
+            workerTotal.textContent = String(total);
+
+            const traffic = Number(result.publish_rate) + Number(result.deliver_rate);
+            if (traffic > 0 && Date.now() - lastTrafficAt > 2200) {
+                lastTrafficAt = Date.now();
+                playJourney();
             }
         };
 
-        eventSource.onerror = function() {
-            statusInd.classList.replace('text-emerald-600', 'text-red-600');
-            statusInd.classList.replace('bg-emerald-50', 'bg-red-50');
-            statusInd.classList.replace('border-emerald-200', 'border-red-200');
-            statusInd.innerHTML = `<span class="h-2 w-2 mr-2 rounded-full bg-red-500"></span> Conexão Perdida`;
+        eventSource.onerror = () => {
+            setConnectionState("offline", "Desconectado");
+            lastUpdate.textContent = "sem conexão";
         };
-
-        async function sendProduce() {
-            const count = 1;
-            const queue = document.getElementById('prod-queue').value;
-            try {
-                const res = await fetch('/api/produce', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ count: parseInt(count), queue: queue })
-                });
-                if(!res.ok) alert('Erro ao produzir mensagens');
-            } catch(e) { console.error(e); }
-        }
-
-        async function sendConsume() {
-            try {
-                const res = await fetch('/api/consume', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({})
-                });
-                const data = await res.json();
-                alert(data.message);
-            } catch(e) { console.error(e); }
-        }
     </script>
 </body>
 </html>
