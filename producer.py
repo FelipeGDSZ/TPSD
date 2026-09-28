@@ -1,35 +1,38 @@
-"""
-producer.py (Versão NATS - Revisada)
-------------------------------------
-O PRODUTOR cria e envia pedidos para o NATS.
-"""
+"""Produtor de pedidos para o fluxo coreografado em NATS Core."""
 
-import asyncio
-import uuid
-import json
-import random
-import time
 import argparse
+import asyncio
+import json
+import os
+import random
+import sys
+import time
+import uuid
 from datetime import datetime, timezone
+
 from nats.aio.client import Client as NATS
 
-# ── Configurações de conexão ───────────────────────────────────────
-NATS_URL = "nats://localhost:4222"
+from nats_connection import close_nats, connect_nats
 
-ROUTING_KEYS = [
-    "order.payment.new",
-    "order.stock.reserve",
-    "order.notify.confirm",
+NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
+PAYMENT_SUBJECT = "order.payment.new"
+
+PRODUCTS = [
+    "notebook",
+    "smartphone",
+    "tablet",
+    "monitor",
+    "headset",
+    "keyboard",
+    "mouse",
 ]
-
-PRODUCTS = ["notebook", "smartphone", "tablet", "monitor", "headset", "keyboard", "mouse"]
 
 
 def gerar_pedido(numero: int) -> dict:
     """Gera um pedido fictício com dados aleatórios."""
     return {
         "event_id": str(uuid.uuid4()),
-        "order_id": f"ORD-{numero:06d}",
+        "order_id": f"ORD-{uuid.uuid4().hex[:12].upper()}",
         "customer_id": f"CUST-{random.randint(1, 500):04d}",
         "product_id": random.choice(PRODUCTS),
         "quantity": random.randint(1, 5),
@@ -38,72 +41,90 @@ def gerar_pedido(numero: int) -> dict:
     }
 
 
-async def executar(total: int, intervalo_log: int = 1000, target_routing_key: str = None):
-    """Conecta ao NATS e envia `total` pedidos de forma assíncrona."""
+async def executar(
+    total: int,
+    intervalo_log: int = 1000,
+    target_routing_key: str | None = None,
+) -> None:
+    """Publica pedidos exclusivamente na primeira etapa da coreografia."""
+    if total < 0:
+        raise ValueError("O total de pedidos não pode ser negativo.")
+
+    subject = target_routing_key or PAYMENT_SUBJECT
+    if subject != PAYMENT_SUBJECT:
+        raise ValueError(
+            f"O fluxo E2E deve começar em '{PAYMENT_SUBJECT}', não em '{subject}'."
+        )
+
     nc = NATS()
     print(f"[PRODUTOR] Conectando ao NATS em {NATS_URL}...")
-    
+
     try:
-        await nc.connect(NATS_URL)
-    except Exception as e:
-        print(f"[ERRO] Falha ao conectar no servidor NATS: {e}")
-        return
+        await connect_nats(nc, NATS_URL, "PRODUTOR")
+        print(f"[PRODUTOR] Enviando {total:,} pedidos para '{PAYMENT_SUBJECT}'...\n")
 
-    print(f"[PRODUTOR] Enviando {total:,} pedidos...\n")
+        inicio = time.time()
+        erros = 0
+        delay = min(0.1, 10.0 / total) if total > 0 else 0.0
 
-    inicio = time.time()
-    erros = 0
-    
-    # Atraso dinâmico para demorar até 10 segundos, para o usuário "ver" as mensagens no dashboard
-    delay = min(0.1, 10.0 / total) if total > 0 else 0.0
+        for i in range(1, total + 1):
+            pedido = gerar_pedido(i)
+            corpo = json.dumps(pedido).encode("utf-8")
 
-    for i in range(1, total + 1):
-        subject = target_routing_key if target_routing_key else random.choice(ROUTING_KEYS)
-        pedido = gerar_pedido(i)
-        corpo = json.dumps(pedido).encode("utf-8")
+            try:
+                await nc.publish(PAYMENT_SUBJECT, corpo)
+                if delay > 0:
+                    await asyncio.sleep(delay)
+            except Exception as error:
+                erros += 1
+                print(f"  [ERRO] Pedido {i}: {error}")
+                continue
 
-        try:
-            # Publica a mensagem no subject especificado
-            await nc.publish(subject, corpo)
-            
-            # Pausa assíncrona (não bloqueia a thread) para a animação
-            if delay > 0:
-                await asyncio.sleep(delay)
-                
-        except Exception as e:
-            erros += 1
-            print(f"  [ERRO] Pedido {i}: {e}")
-            continue
+            if intervalo_log > 0 and i % intervalo_log == 0:
+                decorrido = time.time() - inicio
+                taxa = i / decorrido if decorrido > 0 else 0
+                print(
+                    f"  Enviados: {i:>7,} | Tempo: {decorrido:>6.1f}s | "
+                    f"Taxa: {taxa:>8.0f} msg/s"
+                )
 
-        # Exibe progresso a cada `intervalo_log` mensagens
-        if i % intervalo_log == 0:
-            decorrido = time.time() - inicio
-            taxa = i / decorrido if decorrido > 0 else 0
-            print(f"  Enviados: {i:>7,} | Tempo: {decorrido:>6.1f}s | Taxa: {taxa:>8.0f} msg/s")
+        await nc.flush(timeout=5)
+        decorrido = time.time() - inicio
+        enviados = total - erros
+        taxa = enviados / decorrido if decorrido > 0 else 0
 
-    decorrido = time.time() - inicio
-    taxa = total / decorrido if decorrido > 0 else 0
-
-    print(f"\n{'='*50}")
-    print(f"  TOTAL ENVIADO : {total:,} pedidos")
-    print(f"  ERROS         : {erros}")
-    print(f"  TEMPO TOTAL   : {decorrido:.2f}s")
-    print(f"  TAXA MÉDIA    : {taxa:.0f} msg/s")
-    print(f"{'='*50}")
-
-    # Aguarda o envio de todas as mensagens que possam estar no buffer da rede
-    await nc.drain()
+        print(f"\n{'=' * 50}")
+        print(f"  TOTAL ENVIADO : {enviados:,} pedidos")
+        print(f"  ERROS         : {erros}")
+        print(f"  TEMPO TOTAL   : {decorrido:.2f}s")
+        print(f"  TAXA MÉDIA    : {taxa:.0f} msg/s")
+        print(f"{'=' * 50}")
+    finally:
+        await close_nats(nc, "PRODUTOR")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Produtor de pedidos – TP01 (Versão NATS)")
-    parser.add_argument("--total", type=int, default=10000,
-                        help="Quantos pedidos enviar (padrão: 10000)")
-    parser.add_argument("--report", type=int, default=1000,
-                        help="A cada quantos pedidos imprimir progresso (padrão: 1000)")
-    parser.add_argument("--target", type=str, default=None,
-                        help="Subject alvo específico (ex: order.payment.new)")
+    parser = argparse.ArgumentParser(description="Produtor de pedidos - NATS Core")
+    parser.add_argument("--total", type=int, default=10000)
+    parser.add_argument("--report", type=int, default=1000)
+    parser.add_argument(
+        "--target",
+        type=str,
+        default=None,
+        help=f"Compatibilidade: aceita apenas {PAYMENT_SUBJECT}",
+    )
     args = parser.parse_args()
 
-    # Inicia o loop de eventos do asyncio para rodar a função
-    asyncio.run(executar(total=args.total, intervalo_log=args.report, target_routing_key=args.target))
+    try:
+        asyncio.run(
+            executar(
+                total=args.total,
+                intervalo_log=args.report,
+                target_routing_key=args.target,
+            )
+        )
+    except KeyboardInterrupt:
+        pass
+    except Exception as error:
+        print(f"[PRODUTOR] Falha fatal: {error}")
+        sys.exit(1)

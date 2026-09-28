@@ -1,53 +1,73 @@
-# TP1 Sistemas Distribuídos - NATS
+# TP1 Sistemas Distribuídos - NATS Core
 
-Este repositório contém o Trabalho Prático 1 da disciplina de Sistemas Distribuídos (Ciência da Computação - UFOP).
+Sistema de e-commerce distribuído em Python usando NATS Core, Queue Groups e
+request/reply. A entrega é **at-most-once**: este projeto não usa JetStream.
 
-## Arquitetura do Projeto
-* **Producer (`producer.py`):** Gera pedidos fictícios assincronamente e publica no NATS.
-* **Workers (`consumer_*.py`):** Consumidores construídos com `asyncio` que utilizam **Queue Groups** do NATS para balanceamento de carga (Pagamento, Estoque, Notificação).
-* **Dashboard (`dashboard.py`):** Servidor Flask que consome a API HTTP nativa do NATS (porta 8222) e envia métricas via *Server-Sent Events (SSE)* para um frontend topológico desenhado com Vis.js.
-* **Infraestrutura:** Suporte completo a Docker e Docker Swarm para orquestração de contêineres.
+## Fluxo dos pedidos
 
-## Tecnologias Utilizadas
-* Python 3.12+ (Bibliotecas: `nats-py`, `flask`, `requests`, `matplotlib`)
-* NATS Server (Docker)
-* HTML5 + Tailwind CSS + Vis.js (Frontend)
+1. O producer publica em `order.payment.new`.
+2. Pagamento publica o pedido aprovado em `order.stock.reserve`.
+3. Estoque publica o pedido reservado em `order.notify.confirm`.
+4. Notificação conclui o fluxo.
 
-## Como executar localmente
+Cada etapa usa um Queue Group para permitir múltiplas instâncias do mesmo
+consumer sem processamento simultâneo da mesma publicação.
 
-1. **Suba o cluster NATS:**
+## Execução local com Docker Compose
 
-   docker-compose up -d
-   
-2. Crie e ative o ambiente visual:
+Pré-requisitos: Docker e Docker Compose.
 
-   python3 -m venv venv
+```bash
+docker compose up --build -d
+docker compose ps
+```
 
-   source venv/bin/activate
+O Compose inicia NATS, pagamento, estoque, notificação, RPC e dashboard.
 
-   No Windows use: venv\Scripts\activate
+- Dashboard: http://localhost:5000
+- Monitoramento NATS: http://localhost:8222
+- Clientes NATS: `nats://localhost:4222`
 
-3. Inicie o monitoramento:
+Para acompanhar o fluxo:
 
-   python dashboard.py
+```bash
+docker compose logs -f payment stock notification
+```
 
-4. Acesse http://localhost:5000 no seu navegador.
+O dashboard inicia pedidos pela interface. Também é possível executar o
+producer manualmente dentro da imagem:
 
-5. Inicie os Workers (Abra terminais separados e ative o venv em todos):
+```bash
+docker compose exec dashboard python producer.py --total 10 --report 1
+```
 
-   python consumer_payment.py
+Teste do RPC:
 
-   python consumer_stock.py
+```bash
+docker compose exec dashboard python rpc_client.py
+```
 
-   python consumer_notification.py
+Encerramento:
 
-   Disparo de Carga (Producer): python producer.py --total 10000
+```bash
+docker compose down
+```
 
-6. Execute o Case RPC
+## Execução sem Docker
 
-   Mantenha o NATS rodando, abra dois novos terminais (com o venv ativo) e observe a comunicação síncrona:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-   Servidor de Estoque: python rpc_server.py
+Com um servidor NATS disponível, configure os endpoints quando necessário:
 
-   Cliente de Consulta: python rpc_client.py
+```bash
+export NATS_URL=nats://localhost:4222
+export NATS_MONITOR_URL=http://localhost:8222
+```
 
+Em terminais separados, execute `consumer_payment.py`,
+`consumer_stock.py`, `consumer_notification.py`, `rpc_server.py` e
+`dashboard.py`.

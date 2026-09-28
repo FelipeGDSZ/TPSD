@@ -1,69 +1,68 @@
-"""
-rpc_client.py (Revisado)
-------------------------
-Faz consultas diretas (Request-Reply) ao microsserviço de estoque 
-e espera a resposta para tomar uma decisão.
-"""
+"""Cliente RPC de consulta de estoque sobre NATS Core."""
 
 import asyncio
 import json
+import os
+import sys
+
 from nats.aio.client import Client as NATS
 
-# ── Configurações ──────────────────────────────────────────────────
-NATS_URL = "nats://localhost:4222"
+from nats_connection import close_nats, connect_nats
 
-async def main():
+NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
+RPC_SUBJECT = "inventory.check"
+RPC_TIMEOUT = float(os.getenv("RPC_TIMEOUT", "2.0"))
+
+
+async def main() -> None:
     nc = NATS()
-    print(f"[RPC CLIENT] Tentando conectar ao NATS em {NATS_URL}...")
-    
+    print(f"[RPC CLIENT] Conectando ao NATS em {NATS_URL}...")
+
     try:
-        await nc.connect(NATS_URL)
-    except Exception as e:
-        print(f"[ERRO] Falha ao conectar no servidor NATS: {e}")
-        return
+        await connect_nats(nc, NATS_URL, "RPC CLIENT")
+        produtos_para_testar = ["notebook", "tablet", "mouse", ""]
 
-    print("[RPC CLIENT]  Conectado. Iniciando bateria de consultas...\n")
-    
-    # Lista de produtos (o último é um teste de erro para acionar a validação do servidor)
-    produtos_para_testar = ["notebook", "tablet", "mouse", ""]
-    
-    for produto in produtos_para_testar:
-        if produto == "":
-            print("[RPC CLIENT] Teste de Resiliência: Enviando requisição sem product_id...")
-        else:
-            print(f"[RPC CLIENT] Perguntando ao estoque se tem '{produto}'...")
-            
-        pedido = {"product_id": produto}
-        
-        try:
-            # O timeout previne que o cliente fique travado se o servidor estiver offline
-            resposta_bruta = await nc.request("inventory.check", json.dumps(pedido).encode("utf-8"), timeout=2.0)
-            
-            # Decodifica o JSON que o servidor devolveu
-            resposta = json.loads(resposta_bruta.data.decode("utf-8"))
-            
-            # Verifica o status da resposta antes de tentar ler o estoque
-            if resposta.get("status") == "failed":
-                print(f"  ERRO RETORNADO PELO SERVIDOR: {resposta.get('error')}")
+        for produto in produtos_para_testar:
+            if produto:
+                print(f"[RPC CLIENT] Consultando o produto '{produto}'...")
             else:
-                if resposta.get("available"):
-                    print(f"   SUCESSO: Temos {resposta['stock']} unidades de '{produto}'. Pode vender!")
-                else:
-                    print(f"   RECUSADO: O produto '{produto}' está fora de estoque.")
-                
-        except asyncio.TimeoutError:
-            print("   TIMEOUT: O servidor de estoque demorou demais ou está offline.")
-        except Exception as e:
-            print(f"   ERRO DE COMUNICAÇÃO: {e}")
-        
-        print("-" * 60)
-        await asyncio.sleep(2) # Pausa para facilitar a leitura no terminal
+                print("[RPC CLIENT] Enviando requisição sem product_id...")
 
-    print("\n[RPC CLIENT] Testes finalizados. Encerrando conexão...")
-    await nc.drain()
+            pedido = {"product_id": produto}
+            try:
+                resposta_bruta = await nc.request(
+                    RPC_SUBJECT,
+                    json.dumps(pedido).encode("utf-8"),
+                    timeout=RPC_TIMEOUT,
+                )
+                resposta = json.loads(resposta_bruta.data.decode("utf-8"))
+
+                if resposta.get("status") == "failed":
+                    print(f"  ERRO DO SERVIDOR: {resposta.get('error')}")
+                elif resposta.get("available"):
+                    print(
+                        f"  SUCESSO: {resposta['stock']} unidades "
+                        f"de '{produto}' disponíveis."
+                    )
+                else:
+                    print(f"  RECUSADO: '{produto}' está fora de estoque.")
+            except asyncio.TimeoutError:
+                print("  TIMEOUT: servidor indisponível ou lento.")
+            except Exception as error:
+                print(f"  ERRO DE COMUNICAÇÃO: {error}")
+
+            print("-" * 60)
+            await asyncio.sleep(2)
+    finally:
+        print("[RPC CLIENT] Encerrando conexão com o NATS...")
+        await close_nats(nc, "RPC CLIENT")
+
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
+    except Exception as error:
+        print(f"[RPC CLIENT] Falha fatal: {error}")
+        sys.exit(1)

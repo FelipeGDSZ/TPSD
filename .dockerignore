@@ -1,0 +1,8 @@
+.git
+.vscode
+__pycache__
+*.py[cod]
+venv
+source
+benchmark_results.json
+benchmark_plot_nats.png

@@ -69,11 +69,9 @@
                         <span>📤 Produzir Mensagens</span>
                     </h3>
                     <div class="flex flex-col gap-2">
-                        <label class="text-xs text-slate-600 font-medium">Subject Destino</label>
+                        <label class="text-xs text-slate-600 font-medium">Início do fluxo E2E</label>
                         <select id="prod-queue" class="border rounded p-1 text-sm outline-none focus:border-emerald-500 bg-white">
-                            <option value="orders.payment">Pagamento</option>
-                            <option value="orders.stock">Estoque</option>
-                            <option value="orders.notification">Notificação</option>
+                            <option value="orders.payment">Pagamento → Estoque → Notificação</option>
                         </select>
                         <button onclick="sendProduce()" class="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-1.5 rounded transition">Enviar 1 Mensagem</button>
                     </div>

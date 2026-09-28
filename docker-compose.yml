@@ -1,62 +1,83 @@
-# docker-compose.yml (Versão NATS)
-# ─────────────────────────────────────────────────────────────────────
-
 services:
-
-  # ── Nó 1 do NATS (Nó Semente / Seed) ─────────────────────────────
-  nats1:
-    image: nats:latest
-    hostname: nats1
-    container_name: nats1
-    # Passamos os argumentos direto para o binário do nats-server
-    command: >
-      --name nats1
-      --cluster_name TP01_CLUSTER
-      --cluster nats://0.0.0.0:6222
-      --http_port 8222
+  nats:
+    image: nats:2.15.0-alpine
+    command: ["--name", "nats", "--http_port", "8222"]
     ports:
-      - "4222:4222"    # Porta dos clientes (onde os scripts Python se conectam)
-      - "8222:8222"    # API HTTP de monitoramento (usada pelo dashboard)
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8222/healthz || exit 1"]
+      interval: 5s
+      timeout: 2s
+      retries: 12
+      start_period: 3s
+    restart: unless-stopped
     networks:
       - nats_net
 
-  # ── Nó 2 ─────────────────────────────────────────────────────────
-  nats2:
-    image: nats:latest
-    hostname: nats2
-    container_name: nats2
-    command: >
-      --name nats2
-      --cluster_name TP01_CLUSTER
-      --cluster nats://0.0.0.0:6222
-      --routes nats://nats1:6222
-      --http_port 8222
-    ports:
-      - "4223:4222"
-      - "8223:8222"
-    networks:
-      - nats_net
+  payment:
+    build: .
+    command: ["consumer_payment.py"]
+    environment:
+      NATS_URL: nats://nats:4222
     depends_on:
-      - nats1
-
-  # ── Nó 3 ─────────────────────────────────────────────────────────
-  nats3:
-    image: nats:latest
-    hostname: nats3
-    container_name: nats3
-    command: >
-      --name nats3
-      --cluster_name TP01_CLUSTER
-      --cluster nats://0.0.0.0:6222
-      --routes nats://nats1:6222
-      --http_port 8222
-    ports:
-      - "4224:4222"
-      - "8224:8222"
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - nats_net
+
+  stock:
+    build: .
+    command: ["consumer_stock.py"]
+    environment:
+      NATS_URL: nats://nats:4222
     depends_on:
-      - nats1
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - nats_net
+
+  notification:
+    build: .
+    command: ["consumer_notification.py"]
+    environment:
+      NATS_URL: nats://nats:4222
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - nats_net
+
+  rpc:
+    build: .
+    command: ["rpc_server.py"]
+    environment:
+      NATS_URL: nats://nats:4222
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - nats_net
+
+  dashboard:
+    build: .
+    command: ["dashboard.py"]
+    environment:
+      NATS_URL: nats://nats:4222
+      NATS_MONITOR_URL: http://nats:8222
+      FLASK_DEBUG: "0"
+    ports:
+      - "5000:5000"
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - nats_net
 
 networks:
   nats_net:
