@@ -14,9 +14,12 @@ NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
 SUBJECT = "order.payment.*"
 QUEUE_GROUP = "orders.payment"
 NEXT_SUBJECT = "order.stock.reserve"
+LOG_EVERY = max(1, int(os.getenv("PROCESS_LOG_EVERY", "1")))
+processed_messages = 0
 
 
 async def processar_pagamento(msg, nc: NATS) -> None:
+    global processed_messages
     try:
         pedido = json.loads(msg.data.decode("utf-8"))
     except Exception as error:
@@ -24,19 +27,23 @@ async def processar_pagamento(msg, nc: NATS) -> None:
         return
 
     try:
+        processed_messages += 1
+        log_this = processed_messages == 1 or processed_messages % LOG_EVERY == 0
         order_id = pedido.get("order_id", "?")
         customer_id = pedido.get("customer_id", "?")
         amount = pedido.get("amount", 0.0)
 
         await asyncio.sleep(random.uniform(0.005, 0.05))
-        print(
-            f"  [PAGAMENTO] Aprovado | {order_id} | "
-            f"R$ {amount:.2f} | Cliente {customer_id}"
-        )
+        if log_this:
+            print(
+                f"  [PAGAMENTO] Aprovado | {order_id} | "
+                f"R$ {amount:.2f} | Cliente {customer_id}"
+            )
 
         await nc.publish(NEXT_SUBJECT, msg.data)
         await nc.flush(timeout=2)
-        print(f"  [PAGAMENTO] Evento publicado em '{NEXT_SUBJECT}' | {order_id}")
+        if log_this:
+            print(f"  [PAGAMENTO] Evento publicado em '{NEXT_SUBJECT}' | {order_id}")
     except Exception as error:
         print(f"  [PAGAMENTO] Erro ao processar mensagem: {error}")
 

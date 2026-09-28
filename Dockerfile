@@ -5,11 +5,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-runtime.txt ./
+RUN pip install --no-cache-dir -r requirements-runtime.txt
 
 COPY *.py ./
 COPY templates/ ./templates/
+
+RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+USER appuser
 
 ENTRYPOINT ["python"]
 CMD ["dashboard.py"]

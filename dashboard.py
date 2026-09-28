@@ -33,6 +33,17 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/healthz")
+def healthz():
+    """Confirma que o dashboard consegue consultar o servidor NATS."""
+    try:
+        response = requests.get(f"{NATS_MONITOR_URL}/healthz", timeout=2)
+        response.raise_for_status()
+        return jsonify({"status": "ok"})
+    except requests.RequestException as error:
+        return jsonify({"status": "error", "detail": str(error)}), 503
+
+
 def buscar_metricas() -> dict:
     try:
         res_varz = requests.get(NATS_API_VARZ, timeout=2)

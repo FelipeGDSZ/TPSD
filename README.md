@@ -71,3 +71,24 @@ export NATS_MONITOR_URL=http://localhost:8222
 Em terminais separados, execute `consumer_payment.py`,
 `consumer_stock.py`, `consumer_notification.py`, `rpc_server.py` e
 `dashboard.py`.
+
+## Implantação em duas VMs
+
+Para a Oracle Cloud, o projeto fornece dois manifests independentes:
+
+- `deploy/nats-dashboard.compose.yml`: NATS e dashboard na VM 1.
+- `deploy/workers.compose.yml`: consumers e RPC na VM 2.
+
+Copie `deploy/.env.example` para `deploy/.env`, use apenas IPs privados para
+o NATS e siga o checklist completo em `ROTEIRO.md`.
+
+## Teste de carga
+
+O benchmark publica uma rajada e acompanha cada pedido até a última etapa:
+
+```bash
+docker compose exec dashboard \
+  python benchmark.py --msgs 2000 --timeout 180 --label 1-worker
+```
+
+Consulte `ROTEIRO.md` para comparar réplicas e simular queda abrupta.

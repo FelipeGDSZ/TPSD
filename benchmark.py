@@ -1,152 +1,242 @@
-"""Benchmark simples do fluxo de pagamento em NATS Core."""
+"""Benchmark E2E do fluxo coreografado sobre NATS Core."""
 
 import argparse
+import asyncio
 import json
 import os
-import subprocess
 import sys
 import time
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 
-import matplotlib.pyplot as plt
-import requests
+from nats.aio.client import Client as NATS
 
-RESULTS_FILE = os.getenv("BENCHMARK_RESULTS_FILE", "benchmark_results.json")
-NATS_MONITOR_URL = os.getenv("NATS_MONITOR_URL", "http://localhost:8222").rstrip("/")
-NATS_API_VARZ = f"{NATS_MONITOR_URL}/varz"
+from nats_connection import close_nats, connect_nats
+from producer import PAYMENT_SUBJECT, gerar_pedido
 
-
-def get_delivered_messages() -> int:
-    try:
-        response = requests.get(NATS_API_VARZ, timeout=2)
-        response.raise_for_status()
-        return response.json().get("out_msgs", 0)
-    except Exception as error:
-        print(f"[API_ERRO] {error}")
-        return -1
+NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
+FINAL_SUBJECT = "order.notify.confirm"
+RESULTS_FILE = Path(os.getenv("BENCHMARK_RESULTS_FILE", "benchmark_results.json"))
 
 
-def stop_processes(processes: list[subprocess.Popen]) -> None:
-    for process in processes:
-        if process.poll() is None:
-            process.terminate()
+def percentile(values: list[float], percentage: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, int((len(ordered) - 1) * percentage))
+    return ordered[index]
 
-    for process in processes:
+
+async def run_benchmark(
+    total: int,
+    timeout: float,
+    batch_size: int,
+    label: str,
+) -> dict:
+    """Publica uma rajada e observa cada pedido chegando à última etapa."""
+    if total <= 0:
+        raise ValueError("--msgs deve ser maior que zero")
+    if batch_size <= 0:
+        raise ValueError("--batch-size deve ser maior que zero")
+
+    nc = NATS()
+    benchmark_id = uuid.uuid4().hex
+    completed = asyncio.Event()
+    received_ids: set[str] = set()
+    sent_at: dict[str, float] = {}
+    latencies: list[float] = []
+
+    async def observe_final_stage(msg) -> None:
         try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
+            payload = json.loads(msg.data.decode("utf-8"))
+            if payload.get("benchmark_id") != benchmark_id:
+                return
 
+            order_id = payload["order_id"]
+            if order_id in received_ids:
+                return
 
-def run_benchmark(msgs: int, consumers_count: int) -> None:
-    print(f"\n[BENCHMARK] Iniciando {consumers_count} consumidores...")
-    processes: list[subprocess.Popen] = []
+            received_ids.add(order_id)
+            started = sent_at.get(order_id)
+            if started is not None:
+                latencies.append(time.monotonic() - started)
 
+            if len(received_ids) >= total:
+                completed.set()
+        except Exception as error:
+            print(f"[BENCHMARK] Evento final inválido: {error}")
+
+    print(f"[BENCHMARK] Conectando ao NATS em {NATS_URL}...")
     try:
-        for _ in range(consumers_count):
-            process = subprocess.Popen(
-                [sys.executable, "consumer_payment.py"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            processes.append(process)
-
-        time.sleep(2)
-        start_msgs_count = get_delivered_messages()
-        if start_msgs_count < 0:
-            raise RuntimeError("Não foi possível ler as métricas iniciais do NATS.")
-
-        print(f"[BENCHMARK] Gerando {msgs} mensagens...")
-        start_time = time.time()
-
-        subprocess.run(
-            [
-                sys.executable,
-                "producer.py",
-                "--total",
-                str(msgs),
-                "--target",
-                "order.payment.new",
-            ],
-            check=True,
+        await connect_nats(nc, NATS_URL, "BENCHMARK")
+        subscription = await nc.subscribe(
+            FINAL_SUBJECT,
+            cb=observe_final_stage,
+            pending_msgs_limit=max(65_536, total * 2),
+            pending_bytes_limit=256 * 1024 * 1024,
         )
+        await nc.flush(timeout=5)
 
-        while True:
-            current_msgs_count = get_delivered_messages()
-            if current_msgs_count < 0:
-                raise RuntimeError("A API de monitoramento do NATS ficou indisponível.")
-
-            if current_msgs_count - start_msgs_count >= msgs:
-                break
-
-            if time.time() - start_time > 1800:
-                raise TimeoutError("Timeout aguardando a entrega das mensagens.")
-
-            time.sleep(0.5)
-
-        elapsed = time.time() - start_time
-        rate = msgs / elapsed if elapsed > 0 else 0
         print(
-            f"[RESULTADO] {consumers_count} consumidores receberam {msgs} "
-            f"mensagens em {elapsed:.2f}s => {rate:.0f} msg/s"
+            f"[BENCHMARK] Publicando rajada de {total:,} pedidos; "
+            f"observando '{FINAL_SUBJECT}'."
         )
-        save_result(consumers_count, rate)
-        generate_plot()
-    finally:
-        stop_processes(processes)
+        started_at = time.monotonic()
 
+        for index in range(1, total + 1):
+            order = gerar_pedido(index)
+            order["benchmark_id"] = benchmark_id
+            order["benchmark_sequence"] = index
+            sent_at[order["order_id"]] = time.monotonic()
+            await nc.publish(
+                PAYMENT_SUBJECT,
+                json.dumps(order).encode("utf-8"),
+            )
+            if index % batch_size == 0:
+                await nc.flush(timeout=10)
 
-def save_result(consumers: int, rate: float) -> None:
-    results = {}
-    if os.path.exists(RESULTS_FILE):
+        await nc.flush(timeout=10)
+        publish_elapsed = time.monotonic() - started_at
+
         try:
-            with open(RESULTS_FILE, "r", encoding="utf-8") as file:
-                results = json.load(file)
-        except (OSError, json.JSONDecodeError) as error:
-            print(f"[AVISO] Resultado anterior ignorado: {error}")
+            await asyncio.wait_for(completed.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            print(
+                f"[BENCHMARK] Timeout de {timeout:.0f}s; "
+                "encerrando com os eventos observados."
+            )
 
-    results[str(consumers)] = rate
-    with open(RESULTS_FILE, "w", encoding="utf-8") as file:
-        json.dump(results, file)
+        elapsed = time.monotonic() - started_at
+        await subscription.unsubscribe()
+
+        delivered = len(received_ids)
+        lost = total - delivered
+        result = {
+            "label": label,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "sent": total,
+            "completed": delivered,
+            "lost": lost,
+            "completion_percent": round((delivered / total) * 100, 2),
+            "publish_seconds": round(publish_elapsed, 4),
+            "total_seconds": round(elapsed, 4),
+            "publish_rate": round(total / publish_elapsed, 2),
+            "e2e_rate": round(delivered / elapsed, 2),
+            "latency_ms": {
+                "p50": round(percentile(latencies, 0.50) * 1000, 2),
+                "p95": round(percentile(latencies, 0.95) * 1000, 2),
+                "p99": round(percentile(latencies, 0.99) * 1000, 2),
+            },
+        }
+        save_result(label, result)
+        print_result(result)
+        return result
+    finally:
+        await close_nats(nc, "BENCHMARK")
+
+
+def save_result(label: str, result: dict) -> None:
+    results = {}
+    if RESULTS_FILE.exists():
+        try:
+            results = json.loads(RESULTS_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            print(f"[BENCHMARK] Resultado anterior ignorado: {error}")
+
+    results[label] = result
+    RESULTS_FILE.write_text(
+        json.dumps(results, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def print_result(result: dict) -> None:
+    latency = result["latency_ms"]
+    print("\n" + "=" * 64)
+    print(f"  CENÁRIO       : {result['label']}")
+    print(f"  ENVIADOS      : {result['sent']:,}")
+    print(f"  ETAPA FINAL   : {result['completed']:,}")
+    print(f"  PERDIDOS      : {result['lost']:,}")
+    print(f"  CONCLUSÃO     : {result['completion_percent']:.2f}%")
+    print(f"  PUBLICAÇÃO    : {result['publish_rate']:,.0f} msg/s")
+    print(f"  E2E           : {result['e2e_rate']:,.0f} pedidos/s")
+    print(
+        "  LATÊNCIA      : "
+        f"p50={latency['p50']:.1f}ms | "
+        f"p95={latency['p95']:.1f}ms | "
+        f"p99={latency['p99']:.1f}ms"
+    )
+    print("=" * 64)
 
 
 def generate_plot() -> None:
-    if not os.path.exists(RESULTS_FILE):
-        print("[AVISO] Nenhum resultado encontrado para plotar.")
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print(
+            "[BENCHMARK] Matplotlib não está na imagem de runtime. "
+            "Execute 'pip install -r requirements.txt' no ambiente local."
+        )
         return
 
-    with open(RESULTS_FILE, "r", encoding="utf-8") as file:
-        results = json.load(file)
-
-    if not results:
+    if not RESULTS_FILE.exists():
+        print("[BENCHMARK] Nenhum resultado encontrado para plotar.")
         return
 
-    x = sorted(int(key) for key in results)
-    y = [results[str(key)] for key in x]
+    results = json.loads(RESULTS_FILE.read_text(encoding="utf-8"))
+    scenarios = []
+    rates = []
+    for label, result in results.items():
+        if isinstance(result, dict) and "e2e_rate" in result:
+            scenarios.append(label)
+            rates.append(result["e2e_rate"])
 
-    plt.figure(figsize=(8, 5))
-    plt.plot(x, y, marker="o", linestyle="-", color="r", linewidth=2)
-    plt.title("Throughput do NATS por Número de Consumidores")
-    plt.xlabel("Número de consumidores (orders.payment)")
-    plt.ylabel("Mensagens / Segundo")
-    plt.xticks(x)
-    plt.grid(True, linestyle="--", alpha=0.7)
+    if not scenarios:
+        print("[BENCHMARK] Nenhum resultado E2E encontrado.")
+        return
+
+    plt.figure(figsize=(9, 5))
+    plt.bar(scenarios, rates, color="#26d9b3")
+    plt.title("Throughput E2E por cenário")
+    plt.xlabel("Cenário")
+    plt.ylabel("Pedidos concluídos por segundo")
+    plt.grid(axis="y", linestyle="--", alpha=0.35)
     plt.tight_layout()
     plt.savefig("benchmark_plot_nats.png")
     plt.close()
-    print("[PLOT] Gráfico salvo como 'benchmark_plot_nats.png'")
+    print("[BENCHMARK] Gráfico salvo em benchmark_plot_nats.png")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Benchmark E2E do NATS Core")
+    parser.add_argument("--msgs", type=int, default=1_000)
+    parser.add_argument("--timeout", type=float, default=120)
+    parser.add_argument("--batch-size", type=int, default=500)
+    parser.add_argument("--label", default="manual")
+    parser.add_argument("--plot-only", action="store_true")
+    parser.add_argument("--fail-on-loss", action="store_true")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Benchmark do NATS")
-    parser.add_argument("--msgs", type=int, help="Total de mensagens")
-    parser.add_argument("--consumers", type=int, help="Número de consumidores")
-    parser.add_argument("--plot-only", action="store_true")
-    args = parser.parse_args()
-
+    args = parse_args()
     if args.plot_only:
         generate_plot()
-    elif args.msgs and args.consumers:
-        run_benchmark(args.msgs, args.consumers)
     else:
-        print("Uso: python benchmark.py --msgs X --consumers Y")
+        try:
+            benchmark_result = asyncio.run(
+                run_benchmark(
+                    total=args.msgs,
+                    timeout=args.timeout,
+                    batch_size=args.batch_size,
+                    label=args.label,
+                )
+            )
+            if args.fail_on_loss and benchmark_result["lost"] > 0:
+                sys.exit(2)
+        except KeyboardInterrupt:
+            pass
+        except Exception as error:
+            print(f"[BENCHMARK] Falha fatal: {error}")
+            sys.exit(1)

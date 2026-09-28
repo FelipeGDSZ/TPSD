@@ -1,0 +1,44 @@
+name: tpsd-workers
+
+x-worker: &worker
+  build:
+    context: ..
+  environment:
+    NATS_URL: ${NATS_URL:?Defina NATS_URL com o IP privado da VM NATS}
+    PROCESS_LOG_EVERY: ${PROCESS_LOG_EVERY:-100}
+  healthcheck:
+    test: ["CMD", "python", "healthcheck.py", "nats"]
+    interval: 15s
+    timeout: 3s
+    retries: 4
+    start_period: 10s
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+  mem_limit: 256m
+  networks:
+    - workers_net
+
+services:
+  payment:
+    <<: *worker
+    command: ["consumer_payment.py"]
+
+  stock:
+    <<: *worker
+    command: ["consumer_stock.py"]
+
+  notification:
+    <<: *worker
+    command: ["consumer_notification.py"]
+
+  rpc:
+    <<: *worker
+    command: ["rpc_server.py"]
+
+networks:
+  workers_net:
+    driver: bridge

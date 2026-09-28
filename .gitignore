@@ -1,6 +1,9 @@
 # Ambientes Virtuais
 venv/
 env/
+source/
+.env
+deploy/.env
 
 # Arquivos temporários do Python
 __pycache__/
@@ -10,3 +13,4 @@ __pycache__/
 
 # Resultados de benchmark repetitivos (opcional, mas recomendado)
 benchmark_results.json
+benchmark_plot_nats.png

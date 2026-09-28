@@ -14,9 +14,12 @@ NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
 SUBJECT = "order.notify.*"
 QUEUE_GROUP = "orders.notification"
 CANAIS = ["email", "sms", "push"]
+LOG_EVERY = max(1, int(os.getenv("PROCESS_LOG_EVERY", "1")))
+processed_messages = 0
 
 
 async def processar_notificacao(msg) -> None:
+    global processed_messages
     try:
         pedido = json.loads(msg.data.decode("utf-8"))
     except Exception as error:
@@ -24,15 +27,18 @@ async def processar_notificacao(msg) -> None:
         return
 
     try:
+        processed_messages += 1
+        log_this = processed_messages == 1 or processed_messages % LOG_EVERY == 0
         order_id = pedido.get("order_id", "?")
         customer_id = pedido.get("customer_id", "?")
 
         await asyncio.sleep(random.uniform(0.002, 0.02))
         canal = random.choice(CANAIS)
-        print(
-            f"  [NOTIFICAÇÃO] {canal.upper()} enviado | "
-            f"{order_id} | Cliente {customer_id}"
-        )
+        if log_this:
+            print(
+                f"  [NOTIFICAÇÃO] {canal.upper()} enviado | "
+                f"{order_id} | Cliente {customer_id}"
+            )
     except Exception as error:
         print(f"  [NOTIFICAÇÃO] Erro ao processar mensagem: {error}")
 

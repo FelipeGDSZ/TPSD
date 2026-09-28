@@ -14,9 +14,12 @@ NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
 SUBJECT = "order.stock.*"
 QUEUE_GROUP = "orders.stock"
 NEXT_SUBJECT = "order.notify.confirm"
+LOG_EVERY = max(1, int(os.getenv("PROCESS_LOG_EVERY", "1")))
+processed_messages = 0
 
 
 async def processar_estoque(msg, nc: NATS) -> None:
+    global processed_messages
     try:
         pedido = json.loads(msg.data.decode("utf-8"))
     except Exception as error:
@@ -24,20 +27,24 @@ async def processar_estoque(msg, nc: NATS) -> None:
         return
 
     try:
+        processed_messages += 1
+        log_this = processed_messages == 1 or processed_messages % LOG_EVERY == 0
         order_id = pedido.get("order_id", "?")
         customer_id = pedido.get("customer_id", "?")
         product_id = pedido.get("product_id", "?")
         quantity = pedido.get("quantity", 1)
 
         await asyncio.sleep(random.uniform(0.01, 0.03))
-        print(
-            f"  [ESTOQUE] Reservado | {order_id} | {quantity}x {product_id} | "
-            f"Cliente {customer_id}"
-        )
+        if log_this:
+            print(
+                f"  [ESTOQUE] Reservado | {order_id} | {quantity}x {product_id} | "
+                f"Cliente {customer_id}"
+            )
 
         await nc.publish(NEXT_SUBJECT, msg.data)
         await nc.flush(timeout=2)
-        print(f"  [ESTOQUE] Evento publicado em '{NEXT_SUBJECT}' | {order_id}")
+        if log_this:
+            print(f"  [ESTOQUE] Evento publicado em '{NEXT_SUBJECT}' | {order_id}")
     except Exception as error:
         print(f"  [ESTOQUE] Erro ao processar mensagem: {error}")
 

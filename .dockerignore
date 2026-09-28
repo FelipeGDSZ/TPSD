@@ -6,3 +6,7 @@ venv
 source
 benchmark_results.json
 benchmark_plot_nats.png
+.env
+deploy/.env
+ROTEIRO.md
+README.md

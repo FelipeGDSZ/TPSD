@@ -1,96 +1,195 @@
-# Roteiro de Apresentação - TP01 Sistemas Distribuídos
+# Roteiro de implantação e apresentação
 
-Este é o seu guia passo a passo para o dia da apresentação. Siga estas etapas para ligar a infraestrutura na AWS e fazer a demonstração do sistema.
+Este projeto usa NATS Core. Não há persistência, redelivery, ACK explícito ou
+garantia de processamento após uma interrupção. A entrega é at-most-once.
 
----
+## Topologia recomendada
 
-## 1. Ligando o Servidor na AWS
-Como a máquina fica desligada para não consumir horas, o primeiro passo é ligá-la:
-1. Acesse o painel da **AWS EC2**.
-2. Selecione a sua instância (`t3.small`).
-3. Clique em **Estado da instância** (Lá em cima) -> **Iniciar instância**.
-4. Aguarde o estado ficar **Verde** (`Executando`).
-5. Copie o **Endereço IPv4 público** (ex: `18.220.xx.xx`).
+- VM 1: servidor NATS e dashboard.
+- VM 2: pagamento, estoque, notificação e RPC.
+- Comunicação entre as VMs: IPs privados da VCN.
+- Porta 4222: permitida somente da VM de workers para a VM NATS.
+- Porta 8222: não deve ser publicada na internet; use túnel SSH.
+- Porta 5000: restrinja ao seu IP durante a apresentação.
+- Porta 22: restrinja ao seu IP.
 
----
+Os manifests estão em `deploy/nats-dashboard.compose.yml` e
+`deploy/workers.compose.yml`.
 
-## 2. Subindo a Infraestrutura
-Com a máquina ligada, conecte-se a ela para rodar o sistema:
-1. Clique no botão **Conectar** e abra a aba "EC2 Instance Connect" (a tela preta).
-2. Entre na pasta do projeto digitando e apertando Enter:
-   ```bash
-   cd TP-SD/TP1
-   ```
-3. Suba o cluster do RabbitMQ (os 3 servidores):
-   ```bash
-   sudo docker compose up -d
-   ```
-4. Aplique a configuração de cluster e filas resilientes (Quorum Queues):
-   ```bash
-   sudo bash init_cluster.sh
-   ```
+## Checklist antes de criar as VMs
 
----
+1. Confirme que a branch está limpa e que todos os commits foram enviados.
+2. Crie duas VMs na mesma VCN/sub-rede, anotando os IPs privados.
+3. Confirme a arquitetura com `uname -m`; as imagens usadas aceitam ARM64.
+4. Instale Docker Engine e o plugin Docker Compose nas duas VMs.
+5. Clone o mesmo commit do projeto nas duas máquinas.
+6. Configure as regras de rede da VCN e o firewall do sistema operacional.
+7. Não abra 4222 ou 8222 para `0.0.0.0/0`.
 
-## 3. Iniciando o Dashboard Web
-No mesmo terminal, rode o comando para ligar a interface visual:
+## VM 1: NATS e dashboard
+
+Crie o arquivo local de ambiente:
+
 ```bash
-python3 dashboard.py
+cp deploy/.env.example deploy/.env
 ```
-*(Deixe esse terminal aberto. Ele precisa continuar rodando!)*
 
----
+Edite `deploy/.env` e defina `NATS_BIND_IP` com o IP privado da VM 1.
+Depois execute:
 
-## 4. Mostrando para o Professor
-Agora você vai abrir os sites para apresentar:
-1. **Painel do RabbitMQ:** Abra uma nova aba no navegador e acesse `http://SEU_IP_PUBLICO:15672`. 
-   - Usuário: `admin` | Senha: `admin123`
-2. **Seu Dashboard Interativo:** Abra outra aba e acesse `http://SEU_IP_PUBLICO:5000`.
+```bash
+docker compose --env-file deploy/.env \
+  -f deploy/nats-dashboard.compose.yml up --build -d
+docker compose -f deploy/nats-dashboard.compose.yml ps
+```
 
----
+O dashboard ficará na porta 5000. Para consultar o monitor NATS sem expor
+a porta 8222, abra no computador local:
 
-## 5. Roteiro da Demonstração (O que falar e fazer)
+```bash
+ssh -L 8222:127.0.0.1:8222 usuario@IP_PUBLICO_VM_1
+```
 
-### Cena 1: Produção de Mensagens
-- No seu Dashboard, vá em **Produzir Mensagens**.
-- Mande gerar `1000` mensagens para a fila de **Estoque**.
-- **O que mostrar:** Mostre o número de mensagens crescendo instantaneamente no seu mapa e no gráfico original do RabbitMQ.
+Então acesse `http://localhost:8222`.
 
-### Cena 2: O Consumidor e o QoS
-- Vá na caixa **Consumir Mensagens**.
-- Peça para consumir `1000` mensagens da fila de **Estoque**.
-- **O que mostrar:** Explique que o sistema está puxando `1 mensagem por vez` e mostre o número caindo gradativamente enquanto a "estrelinha" amarela aparece.
+## VM 2: workers
 
-### Cena 3: Tolerância a Falhas (Queda de Servidor)
-- Abra um **Segundo Terminal** na AWS (clicando em "Conectar" de novo em outra aba).
-- Force a queda do nó 2:
-  ```bash
-  sudo docker stop rabbit2
-  ```
-- **O que mostrar:**
-  1. Vá no painel do RabbitMQ (porta 15672) e mostre que o `rabbit2` caiu (ficou vermelho).
-  2. Volte no seu Dashboard e mande produzir/consumir mais mensagens.
-  3. Explique que o sistema **NÃO PAROU** porque as *Quorum Queues* garantem cópias da fila nos nós sobreviventes (`rabbit1` e `rabbit3`).
-- Ligue de volta para mostrar a recuperação:
-  ```bash
-  sudo docker start rabbit2
-  ```
+Crie `deploy/.env` e ajuste `NATS_URL` para o IP privado da VM 1:
 
----
+```dotenv
+NATS_URL=nats://IP_PRIVADO_VM_1:4222
+```
 
-## Dica Extra: Como zerar as filas e o sistema
-Se você precisar limpar o histórico de mensagens, consumidores e zerar as filas para começar a apresentação do zero, siga os passos abaixo (leva 10 segundos):
-1. Aperte `Ctrl + C` para parar o `dashboard.py`.
-2. Delete o cluster e os volumes:
-   ```bash
-   sudo docker compose down -v
-   ```
-3. Suba tudo novamente:
-   ```bash
-   sudo docker compose up -d
-   ```
-4. Recrie as filas seguras:
-   ```bash
-   sudo bash init_cluster.sh
-   ```
-5. Ligue o dashboard novamente (`python3 dashboard.py`) e tudo estará 100% zerado!
+Suba os serviços:
+
+```bash
+docker compose --env-file deploy/.env \
+  -f deploy/workers.compose.yml up --build -d
+docker compose -f deploy/workers.compose.yml ps
+```
+
+Todos os containers devem ficar `healthy`. Se não ficarem, valide primeiro
+a regra de entrada TCP 4222 na VM 1 e a rota privada entre as VMs.
+
+## Teste ponta a ponta
+
+Na VM 1:
+
+```bash
+docker compose -f deploy/nats-dashboard.compose.yml exec dashboard \
+  python producer.py --total 10 --report 1
+```
+
+Na VM 2:
+
+```bash
+docker compose -f deploy/workers.compose.yml logs -f \
+  payment stock notification
+```
+
+O mesmo `order_id` deve passar por pagamento, estoque e notificação.
+
+Teste do RPC a partir do dashboard:
+
+```bash
+docker compose -f deploy/nats-dashboard.compose.yml exec dashboard \
+  python rpc_client.py
+```
+
+## Teste de rajada e linha de base
+
+Com uma réplica de cada worker na VM 2:
+
+```bash
+docker compose -f deploy/workers.compose.yml up -d \
+  --scale payment=1 --scale stock=1 --scale notification=1
+```
+
+Na VM 1, envie 2.000 pedidos sem atraso artificial:
+
+```bash
+docker compose -f deploy/nats-dashboard.compose.yml exec dashboard \
+  python benchmark.py --msgs 2000 --timeout 180 --label 1-worker
+```
+
+O benchmark assina `order.notify.confirm` antes da rajada e correlaciona
+somente os pedidos desse teste. Apresente mensagens enviadas, eventos que
+chegaram à etapa final, perdas, throughput E2E e latências p50/p95/p99.
+
+## Teste de escala horizontal
+
+Escale todas as etapas; escalar apenas pagamento deslocaria o gargalo para
+estoque ou notificação:
+
+```bash
+docker compose -f deploy/workers.compose.yml up -d \
+  --scale payment=3 --scale stock=3 --scale notification=3
+docker compose -f deploy/workers.compose.yml ps
+```
+
+Espere todos ficarem `healthy` e repita exatamente a mesma carga:
+
+```bash
+docker compose -f deploy/nats-dashboard.compose.yml exec dashboard \
+  python benchmark.py --msgs 2000 --timeout 180 --label 3-workers
+```
+
+Compare o throughput e as latências. Os Queue Groups distribuem cada evento
+entre as réplicas da mesma etapa; eles não criam cópias da mensagem.
+
+## Queda de um container durante a carga
+
+Mantenha três réplicas e inicie uma carga maior na VM 1:
+
+```bash
+docker compose -f deploy/nats-dashboard.compose.yml exec dashboard \
+  python benchmark.py --msgs 10000 --timeout 300 --label falha-payment
+```
+
+Enquanto o teste estiver rodando, liste as réplicas na VM 2:
+
+```bash
+docker ps --filter label=com.docker.compose.project=tpsd-workers \
+  --filter label=com.docker.compose.service=payment
+```
+
+Copie o ID de uma réplica de pagamento e pare somente ela:
+
+```bash
+docker kill --signal KILL ID_DA_REPLICA
+```
+
+As outras duas réplicas continuam processando. Ao final, é possível que o
+benchmark mostre perdas: se o container caiu depois de receber eventos e antes
+de publicar a próxima etapa, NATS Core não faz redelivery. Isso demonstra
+continuidade parcial do serviço, não entrega garantida.
+
+Restaure as três réplicas:
+
+```bash
+docker compose -f deploy/workers.compose.yml up -d --scale payment=3
+```
+
+## Reinício do servidor NATS
+
+Fora do teste de carga, reinicie o NATS e acompanhe a reconexão:
+
+```bash
+docker compose -f deploy/nats-dashboard.compose.yml restart nats
+docker compose -f deploy/workers.compose.yml logs -f
+```
+
+Os clientes se reconectam, mas o servidor NATS único é um ponto de falha e
+mensagens publicadas durante a indisponibilidade podem ser perdidas.
+
+## Diagnóstico e encerramento
+
+```bash
+docker compose -f deploy/nats-dashboard.compose.yml logs --tail=100
+docker compose -f deploy/workers.compose.yml logs --tail=100
+docker compose -f deploy/workers.compose.yml down
+docker compose -f deploy/nats-dashboard.compose.yml down
+```
+
+Não use `down -v`: este projeto não precisa de volumes persistentes.
+Mantenha o Compose local como plano B para a apresentação.

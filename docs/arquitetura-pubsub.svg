@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Arquitetura TP-SD com NATS Core Pub/Sub</title>
+  <desc id="desc">Duas máquinas virtuais. A primeira contém produtor, dashboard e NATS. A segunda contém réplicas dos serviços de pagamento, estoque, notificação e RPC. Os eventos passam por subjects do NATS.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset="1" stop-color="#101d33"/>
+    </linearGradient>
+    <linearGradient id="nats" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#19c7a5"/>
+      <stop offset="1" stop-color="#0e8fca"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity=".28"/>
+    </filter>
+    <marker id="arrowCyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#36d7ff"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#45e0ad"/>
+    </marker>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#ffb15c"/>
+    </marker>
+    <style>
+      .title { font: 700 38px Inter, Arial, sans-serif; fill: #f4f8ff; }
+      .subtitle { font: 400 18px Inter, Arial, sans-serif; fill: #9eb1cc; }
+      .vm-title { font: 700 20px Inter, Arial, sans-serif; fill: #d9e8ff; letter-spacing: 1px; }
+      .card-title { font: 700 19px Inter, Arial, sans-serif; fill: #f4f8ff; }
+      .body { font: 400 15px Inter, Arial, sans-serif; fill: #aec0d8; }
+      .small { font: 500 13px Inter, Arial, sans-serif; fill: #9eb1cc; }
+      .subject { font: 700 15px "Courier New", monospace; fill: #05231f; }
+      .label { font: 700 13px Inter, Arial, sans-serif; }
+      .legend-title { font: 700 17px Inter, Arial, sans-serif; fill: #f4f8ff; }
+      .legend { font: 400 15px Inter, Arial, sans-serif; fill: #c1cde0; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <circle cx="1450" cy="70" r="240" fill="#163151" opacity=".24"/>
+  <circle cx="100" cy="920" r="260" fill="#0f806e" opacity=".10"/>
+
+  <text x="60" y="65" class="title">Arquitetura do sistema — NATS Core Pub/Sub</text>
+  <text x="60" y="98" class="subtitle">Coreografia de pedidos, Queue Groups, escala horizontal e entrega at-most-once</text>
+
+  <rect x="40" y="135" width="930" height="665" rx="26" fill="#0d1a2c" stroke="#2d4668" stroke-width="2"/>
+  <rect x="1010" y="135" width="550" height="665" rx="26" fill="#0d1a2c" stroke="#2d4668" stroke-width="2"/>
+  <text x="70" y="175" class="vm-title">VM 1 · NATS + DASHBOARD</text>
+  <text x="1040" y="175" class="vm-title">VM 2 · WORKERS</text>
+
+  <!-- Producer -->
+  <rect x="80" y="215" width="300" height="115" rx="18" fill="#15263e" stroke="#36d7ff" stroke-width="2" filter="url(#shadow)"/>
+  <text x="110" y="253" class="card-title">Producer / Dashboard</text>
+  <text x="110" y="281" class="body">Cria o pedido e publica o evento</text>
+  <rect x="110" y="297" width="107" height="23" rx="11" fill="#173e55"/>
+  <text x="126" y="313" class="small" fill="#65dcff">PUBLISHER</text>
+
+  <!-- NATS broker -->
+  <rect x="445" y="195" width="470" height="520" rx="24" fill="#102941" stroke="url(#nats)" stroke-width="3" filter="url(#shadow)"/>
+  <rect x="475" y="220" width="410" height="68" rx="15" fill="url(#nats)"/>
+  <text x="505" y="252" class="card-title" fill="#041d23">NATS Core</text>
+  <text x="505" y="275" class="small" fill="#06353b">Broker em memória · sem persistência</text>
+
+  <text x="485" y="325" class="small">SUBJECTS (canais lógicos)</text>
+  <rect x="485" y="345" width="390" height="55" rx="14" fill="#42dfb1"/>
+  <text x="515" y="379" class="subject">order.payment.new</text>
+  <rect x="485" y="445" width="390" height="55" rx="14" fill="#42dfb1"/>
+  <text x="515" y="479" class="subject">order.stock.reserve</text>
+  <rect x="485" y="545" width="390" height="55" rx="14" fill="#42dfb1"/>
+  <text x="515" y="579" class="subject">order.notify.confirm</text>
+  <rect x="485" y="645" width="390" height="45" rx="13" fill="#243d59" stroke="#ffb15c"/>
+  <text x="515" y="674" class="subject" fill="#ffd2a1">inventory.check · RPC</text>
+
+  <!-- Worker cards -->
+  <g filter="url(#shadow)">
+    <rect x="1060" y="210" width="450" height="140" rx="19" fill="#15263e" stroke="#36d7ff" stroke-width="2"/>
+    <rect x="1080" y="230" width="390" height="64" rx="12" fill="#1c3551"/>
+    <text x="1110" y="258" class="card-title">Pagamento × N</text>
+    <text x="1110" y="281" class="small">Queue Group: orders.payment</text>
+    <text x="1090" y="324" class="body">Um único worker recebe cada evento</text>
+
+    <rect x="1060" y="385" width="450" height="140" rx="19" fill="#15263e" stroke="#45e0ad" stroke-width="2"/>
+    <rect x="1080" y="405" width="390" height="64" rx="12" fill="#1c3551"/>
+    <text x="1110" y="433" class="card-title">Estoque × N</text>
+    <text x="1110" y="456" class="small">Queue Group: orders.stock</text>
+    <text x="1090" y="499" class="body">Um único worker recebe cada evento</text>
+
+    <rect x="1060" y="560" width="450" height="140" rx="19" fill="#15263e" stroke="#45e0ad" stroke-width="2"/>
+    <rect x="1080" y="580" width="390" height="64" rx="12" fill="#1c3551"/>
+    <text x="1110" y="608" class="card-title">Notificação × N</text>
+    <text x="1110" y="631" class="small">Queue Group: orders.notification</text>
+    <text x="1090" y="674" class="body">Etapa final da coreografia</text>
+
+    <rect x="1060" y="725" width="450" height="50" rx="15" fill="#24304a" stroke="#ffb15c" stroke-width="2"/>
+    <text x="1090" y="756" class="card-title">RPC Estoque · request/reply</text>
+  </g>
+
+  <!-- Flow arrows -->
+  <path d="M380 273 C420 273 435 360 485 372" fill="none" stroke="#36d7ff" stroke-width="4" marker-end="url(#arrowCyan)"/>
+  <text x="389" y="320" class="label" fill="#36d7ff">PUBLICA</text>
+
+  <path d="M875 372 C960 372 970 280 1060 280" fill="none" stroke="#36d7ff" stroke-width="4" marker-end="url(#arrowCyan)"/>
+  <text x="925" y="322" class="label" fill="#36d7ff">ENTREGA</text>
+
+  <path d="M1060 315 C985 335 970 460 875 472" fill="none" stroke="#45e0ad" stroke-width="4" marker-end="url(#arrowGreen)"/>
+  <text x="915" y="404" class="label" fill="#45e0ad">PUBLICA</text>
+
+  <path d="M875 472 C965 472 980 455 1060 455" fill="none" stroke="#45e0ad" stroke-width="4" marker-end="url(#arrowGreen)"/>
+  <text x="928" y="455" class="label" fill="#45e0ad">ENTREGA</text>
+
+  <path d="M1060 490 C980 505 970 560 875 572" fill="none" stroke="#45e0ad" stroke-width="4" marker-end="url(#arrowGreen)"/>
+  <text x="915" y="535" class="label" fill="#45e0ad">PUBLICA</text>
+
+  <path d="M875 572 C965 572 980 630 1060 630" fill="none" stroke="#45e0ad" stroke-width="4" marker-end="url(#arrowGreen)"/>
+  <text x="928" y="612" class="label" fill="#45e0ad">ENTREGA</text>
+
+  <path d="M875 668 C965 668 985 750 1060 750" fill="none" stroke="#ffb15c" stroke-width="3" marker-end="url(#arrowOrange)"/>
+  <path d="M1060 762 C975 780 960 687 875 680" fill="none" stroke="#ffb15c" stroke-width="3" marker-end="url(#arrowOrange)"/>
+
+  <!-- Benchmark observer -->
+  <rect x="80" y="510" width="300" height="125" rx="18" fill="#15263e" stroke="#b58cff" stroke-width="2"/>
+  <text x="110" y="547" class="card-title">Benchmark / Observador</text>
+  <text x="110" y="575" class="body">Assina o evento final e mede</text>
+  <text x="110" y="598" class="body">throughput, perdas e latência</text>
+  <path d="M485 572 C435 572 425 572 380 572" fill="none" stroke="#b58cff" stroke-width="4" marker-end="url(#arrowCyan)"/>
+  <text x="391" y="557" class="label" fill="#b58cff">SUBSCRIBE</text>
+
+  <!-- Monitor -->
+  <rect x="80" y="665" width="300" height="75" rx="18" fill="#15263e" stroke="#526b8e"/>
+  <text x="110" y="696" class="card-title">Monitor NATS</text>
+  <text x="110" y="721" class="body">HTTP 8222 · métricas do dashboard</text>
+
+  <!-- Legend -->
+  <rect x="40" y="835" width="1520" height="125" rx="22" fill="#0d1a2c" stroke="#2d4668"/>
+  <text x="70" y="872" class="legend-title">Por que é Pub/Sub?</text>
+  <circle cx="82" cy="908" r="7" fill="#36d7ff"/>
+  <text x="100" y="914" class="legend">O publisher envia para um subject; ele não conhece nem chama diretamente os serviços.</text>
+  <circle cx="82" cy="939" r="7" fill="#45e0ad"/>
+  <text x="100" y="945" class="legend">Os subscribers recebem por interesse; no Queue Group, somente uma réplica processa cada evento.</text>
+  <circle cx="865" cy="908" r="7" fill="#ffb15c"/>
+  <text x="883" y="914" class="legend">Cada etapa publica o próximo evento, formando uma coreografia desacoplada.</text>
+  <circle cx="865" cy="939" r="7" fill="#ff6b7a"/>
+  <text x="883" y="945" class="legend">NATS Core: at-most-once, sem armazenamento, ACK ou redelivery.</text>
+</svg>
