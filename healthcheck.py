@@ -5,8 +5,6 @@ import socket
 import sys
 from urllib.parse import urlparse
 
-import requests
-
 
 def check_nats() -> None:
     parsed = urlparse(os.getenv("NATS_URL", "nats://localhost:4222"))
@@ -17,6 +15,8 @@ def check_nats() -> None:
 
 
 def check_dashboard() -> None:
+    import requests
+
     url = os.getenv("DASHBOARD_HEALTH_URL", "http://localhost:5000/healthz")
     response = requests.get(url, timeout=2)
     response.raise_for_status()

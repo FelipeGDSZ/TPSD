@@ -88,7 +88,7 @@ O benchmark publica uma rajada e acompanha cada pedido até a última etapa:
 
 ```bash
 docker compose exec dashboard \
-  python benchmark.py --msgs 2000 --timeout 180 --label 1-worker
+  python benchmark.py --msgs 500 --timeout 180 --label 1-worker
 ```
 
 Consulte `ROTEIRO.md` para comparar réplicas e simular queda abrupta.

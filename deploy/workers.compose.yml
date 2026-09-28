@@ -8,10 +8,10 @@ x-worker: &worker
     PROCESS_LOG_EVERY: ${PROCESS_LOG_EVERY:-100}
   healthcheck:
     test: ["CMD", "python", "healthcheck.py", "nats"]
-    interval: 15s
-    timeout: 3s
-    retries: 4
-    start_period: 10s
+    interval: 30s
+    timeout: 10s
+    retries: 6
+    start_period: 30s
   restart: unless-stopped
   logging:
     driver: json-file

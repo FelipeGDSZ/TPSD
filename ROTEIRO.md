@@ -40,7 +40,8 @@ Depois execute:
 ```bash
 docker compose --env-file deploy/.env \
   -f deploy/nats-dashboard.compose.yml up --build -d
-docker compose -f deploy/nats-dashboard.compose.yml ps
+docker compose --env-file deploy/.env \
+  -f deploy/nats-dashboard.compose.yml ps
 ```
 
 O dashboard ficará na porta 5000. Para consultar o monitor NATS sem expor
@@ -65,7 +66,8 @@ Suba os serviços:
 ```bash
 docker compose --env-file deploy/.env \
   -f deploy/workers.compose.yml up --build -d
-docker compose -f deploy/workers.compose.yml ps
+docker compose --env-file deploy/.env \
+  -f deploy/workers.compose.yml ps
 ```
 
 Todos os containers devem ficar `healthy`. Se não ficarem, valide primeiro
@@ -76,14 +78,16 @@ a regra de entrada TCP 4222 na VM 1 e a rota privada entre as VMs.
 Na VM 1:
 
 ```bash
-docker compose -f deploy/nats-dashboard.compose.yml exec dashboard \
+docker compose --env-file deploy/.env \
+  -f deploy/nats-dashboard.compose.yml exec dashboard \
   python producer.py --total 10 --report 1
 ```
 
 Na VM 2:
 
 ```bash
-docker compose -f deploy/workers.compose.yml logs -f \
+docker compose --env-file deploy/.env \
+  -f deploy/workers.compose.yml logs -f \
   payment stock notification
 ```
 
@@ -92,7 +96,8 @@ O mesmo `order_id` deve passar por pagamento, estoque e notificação.
 Teste do RPC a partir do dashboard:
 
 ```bash
-docker compose -f deploy/nats-dashboard.compose.yml exec dashboard \
+docker compose --env-file deploy/.env \
+  -f deploy/nats-dashboard.compose.yml exec dashboard \
   python rpc_client.py
 ```
 
@@ -101,15 +106,17 @@ docker compose -f deploy/nats-dashboard.compose.yml exec dashboard \
 Com uma réplica de cada worker na VM 2:
 
 ```bash
-docker compose -f deploy/workers.compose.yml up -d \
+docker compose --env-file deploy/.env \
+  -f deploy/workers.compose.yml up -d \
   --scale payment=1 --scale stock=1 --scale notification=1
 ```
 
-Na VM 1, envie 2.000 pedidos sem atraso artificial:
+Na VM 1, envie 500 pedidos sem atraso artificial:
 
 ```bash
-docker compose -f deploy/nats-dashboard.compose.yml exec dashboard \
-  python benchmark.py --msgs 2000 --timeout 180 --label 1-worker
+docker compose --env-file deploy/.env \
+  -f deploy/nats-dashboard.compose.yml exec dashboard \
+  python benchmark.py --msgs 500 --timeout 180 --label 1-worker
 ```
 
 O benchmark assina `order.notify.confirm` antes da rajada e correlaciona
@@ -122,28 +129,38 @@ Escale todas as etapas; escalar apenas pagamento deslocaria o gargalo para
 estoque ou notificação:
 
 ```bash
-docker compose -f deploy/workers.compose.yml up -d \
-  --scale payment=3 --scale stock=3 --scale notification=3
-docker compose -f deploy/workers.compose.yml ps
+docker compose --env-file deploy/.env \
+  -f deploy/workers.compose.yml up -d \
+  --scale payment=2 --scale stock=2 --scale notification=2
+docker compose --env-file deploy/.env \
+  -f deploy/workers.compose.yml ps
 ```
 
 Espere todos ficarem `healthy` e repita exatamente a mesma carga:
 
 ```bash
-docker compose -f deploy/nats-dashboard.compose.yml exec dashboard \
-  python benchmark.py --msgs 2000 --timeout 180 --label 3-workers
+docker compose --env-file deploy/.env \
+  -f deploy/nats-dashboard.compose.yml exec dashboard \
+  python benchmark.py --msgs 500 --timeout 180 --label 2-workers
 ```
 
 Compare o throughput e as latências. Os Queue Groups distribuem cada evento
 entre as réplicas da mesma etapa; eles não criam cópias da mensagem.
 
+Resultado de referência obtido nas duas VMs `E2.1.Micro`:
+
+- 1 worker: 32 pedidos/s, p95 de 14,55 s e zero perdas.
+- 2 workers: 51 pedidos/s, p95 de 9,29 s e zero perdas.
+- Ganho: 59% no throughput e redução de 36% na latência p95.
+
 ## Queda de um container durante a carga
 
-Mantenha três réplicas e inicie uma carga maior na VM 1:
+Mantenha duas réplicas e inicie uma carga maior na VM 1:
 
 ```bash
-docker compose -f deploy/nats-dashboard.compose.yml exec dashboard \
-  python benchmark.py --msgs 10000 --timeout 300 --label falha-payment
+docker compose --env-file deploy/.env \
+  -f deploy/nats-dashboard.compose.yml exec dashboard \
+  python benchmark.py --msgs 1000 --timeout 180 --label falha-payment
 ```
 
 Enquanto o teste estiver rodando, liste as réplicas na VM 2:
@@ -159,15 +176,16 @@ Copie o ID de uma réplica de pagamento e pare somente ela:
 docker kill --signal KILL ID_DA_REPLICA
 ```
 
-As outras duas réplicas continuam processando. Ao final, é possível que o
+A outra réplica continua processando. Ao final, é possível que o
 benchmark mostre perdas: se o container caiu depois de receber eventos e antes
 de publicar a próxima etapa, NATS Core não faz redelivery. Isso demonstra
 continuidade parcial do serviço, não entrega garantida.
 
-Restaure as três réplicas:
+Restaure as duas réplicas:
 
 ```bash
-docker compose -f deploy/workers.compose.yml up -d --scale payment=3
+docker compose --env-file deploy/.env \
+  -f deploy/workers.compose.yml up -d --scale payment=2
 ```
 
 ## Reinício do servidor NATS
@@ -175,8 +193,10 @@ docker compose -f deploy/workers.compose.yml up -d --scale payment=3
 Fora do teste de carga, reinicie o NATS e acompanhe a reconexão:
 
 ```bash
-docker compose -f deploy/nats-dashboard.compose.yml restart nats
-docker compose -f deploy/workers.compose.yml logs -f
+docker compose --env-file deploy/.env \
+  -f deploy/nats-dashboard.compose.yml restart nats
+docker compose --env-file deploy/.env \
+  -f deploy/workers.compose.yml logs -f
 ```
 
 Os clientes se reconectam, mas o servidor NATS único é um ponto de falha e
@@ -185,10 +205,14 @@ mensagens publicadas durante a indisponibilidade podem ser perdidas.
 ## Diagnóstico e encerramento
 
 ```bash
-docker compose -f deploy/nats-dashboard.compose.yml logs --tail=100
-docker compose -f deploy/workers.compose.yml logs --tail=100
-docker compose -f deploy/workers.compose.yml down
-docker compose -f deploy/nats-dashboard.compose.yml down
+docker compose --env-file deploy/.env \
+  -f deploy/nats-dashboard.compose.yml logs --tail=100
+docker compose --env-file deploy/.env \
+  -f deploy/workers.compose.yml logs --tail=100
+docker compose --env-file deploy/.env \
+  -f deploy/workers.compose.yml down
+docker compose --env-file deploy/.env \
+  -f deploy/nats-dashboard.compose.yml down
 ```
 
 Não use `down -v`: este projeto não precisa de volumes persistentes.
