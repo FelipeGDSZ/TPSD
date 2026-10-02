@@ -1,4 +1,4 @@
-"""Produtor de pedidos para o fluxo coreografado em NATS Core."""
+"""Produtor de pedidos para o fluxo coreografado em NATS Core ou JetStream."""
 
 import argparse
 import asyncio
@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 from nats.aio.client import Client as NATS
 
+from jetstream_runtime import jetstream_enabled, publish_jetstream
 from nats_connection import close_nats, connect_nats
 
 NATS_URL = os.getenv("NATS_URL", "nats://localhost:4222")
@@ -61,6 +62,7 @@ async def executar(
 
     try:
         await connect_nats(nc, NATS_URL, "PRODUTOR")
+        js = nc.jetstream(timeout=5) if jetstream_enabled() else None
         print(f"[PRODUTOR] Enviando {total:,} pedidos para '{PAYMENT_SUBJECT}'...\n")
 
         inicio = time.time()
@@ -72,7 +74,10 @@ async def executar(
             corpo = json.dumps(pedido).encode("utf-8")
 
             try:
-                await nc.publish(PAYMENT_SUBJECT, corpo)
+                if js is None:
+                    await nc.publish(PAYMENT_SUBJECT, corpo)
+                else:
+                    await publish_jetstream(js, PAYMENT_SUBJECT, corpo, pedido)
                 if delay > 0:
                     await asyncio.sleep(delay)
             except Exception as error:
@@ -88,7 +93,8 @@ async def executar(
                     f"Taxa: {taxa:>8.0f} msg/s"
                 )
 
-        await nc.flush(timeout=5)
+        if js is None:
+            await nc.flush(timeout=5)
         decorrido = time.time() - inicio
         enviados = total - erros
         taxa = enviados / decorrido if decorrido > 0 else 0
@@ -104,7 +110,7 @@ async def executar(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Produtor de pedidos - NATS Core")
+    parser = argparse.ArgumentParser(description="Produtor de pedidos - NATS")
     parser.add_argument("--total", type=int, default=10000)
     parser.add_argument("--report", type=int, default=1000)
     parser.add_argument(

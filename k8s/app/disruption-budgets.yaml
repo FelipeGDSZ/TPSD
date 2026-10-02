@@ -1,0 +1,35 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: payment
+  namespace: tpsd
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment
+      app.kubernetes.io/part-of: tpsd
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: stock
+  namespace: tpsd
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stock
+      app.kubernetes.io/part-of: tpsd
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notification
+  namespace: tpsd
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notification
+      app.kubernetes.io/part-of: tpsd

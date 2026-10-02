@@ -1,4 +1,4 @@
-"""Benchmark E2E do fluxo coreografado sobre NATS Core."""
+"""Benchmark E2E do fluxo coreografado sobre NATS Core ou JetStream."""
 
 import argparse
 import asyncio
@@ -12,6 +12,7 @@ from pathlib import Path
 
 from nats.aio.client import Client as NATS
 
+from jetstream_runtime import jetstream_enabled, publish_jetstream
 from nats_connection import close_nats, connect_nats
 from producer import PAYMENT_SUBJECT, gerar_pedido
 
@@ -70,6 +71,7 @@ async def run_benchmark(
     print(f"[BENCHMARK] Conectando ao NATS em {NATS_URL}...")
     try:
         await connect_nats(nc, NATS_URL, "BENCHMARK")
+        js = nc.jetstream(timeout=5) if jetstream_enabled() else None
         subscription = await nc.subscribe(
             FINAL_SUBJECT,
             cb=observe_final_stage,
@@ -89,14 +91,16 @@ async def run_benchmark(
             order["benchmark_id"] = benchmark_id
             order["benchmark_sequence"] = index
             sent_at[order["order_id"]] = time.monotonic()
-            await nc.publish(
-                PAYMENT_SUBJECT,
-                json.dumps(order).encode("utf-8"),
-            )
-            if index % batch_size == 0:
+            data = json.dumps(order).encode("utf-8")
+            if js is None:
+                await nc.publish(PAYMENT_SUBJECT, data)
+            else:
+                await publish_jetstream(js, PAYMENT_SUBJECT, data, order)
+            if js is None and index % batch_size == 0:
                 await nc.flush(timeout=10)
 
-        await nc.flush(timeout=10)
+        if js is None:
+            await nc.flush(timeout=10)
         publish_elapsed = time.monotonic() - started_at
 
         try:
@@ -209,7 +213,7 @@ def generate_plot() -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Benchmark E2E do NATS Core")
+    parser = argparse.ArgumentParser(description="Benchmark E2E do NATS")
     parser.add_argument("--msgs", type=int, default=1_000)
     parser.add_argument("--timeout", type=float, default=120)
     parser.add_argument("--batch-size", type=int, default=500)

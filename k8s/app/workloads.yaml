@@ -1,0 +1,270 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment
+  namespace: tpsd
+  labels: &paymentLabels
+    app.kubernetes.io/name: payment
+    app.kubernetes.io/part-of: tpsd
+spec:
+  replicas: 2
+  selector:
+    matchLabels: *paymentLabels
+  template:
+    metadata:
+      labels: *paymentLabels
+    spec:
+      nodeSelector: &workerSelector
+        tpsd.local/worker: "true"
+      terminationGracePeriodSeconds: 30
+      topologySpreadConstraints: &spread
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: *paymentLabels
+      containers:
+        - name: payment
+          image: tpsd-jetstream:dev-001
+          imagePullPolicy: Never
+          args: ["consumer_payment.py"]
+          envFrom: &envFrom
+            - configMapRef:
+                name: tpsd-config
+          readinessProbe: &natsReadiness
+            exec:
+              command: ["python", "healthcheck.py", "nats"]
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources: &workerResources
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stock
+  namespace: tpsd
+  labels: &stockLabels
+    app.kubernetes.io/name: stock
+    app.kubernetes.io/part-of: tpsd
+spec:
+  replicas: 2
+  selector:
+    matchLabels: *stockLabels
+  template:
+    metadata:
+      labels: *stockLabels
+    spec:
+      nodeSelector:
+        tpsd.local/worker: "true"
+      terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: *stockLabels
+      containers:
+        - name: stock
+          image: tpsd-jetstream:dev-001
+          imagePullPolicy: Never
+          args: ["consumer_stock.py"]
+          envFrom:
+            - configMapRef:
+                name: tpsd-config
+          readinessProbe:
+            exec:
+              command: ["python", "healthcheck.py", "nats"]
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification
+  namespace: tpsd
+  labels: &notificationLabels
+    app.kubernetes.io/name: notification
+    app.kubernetes.io/part-of: tpsd
+spec:
+  replicas: 2
+  selector:
+    matchLabels: *notificationLabels
+  template:
+    metadata:
+      labels: *notificationLabels
+    spec:
+      nodeSelector:
+        tpsd.local/worker: "true"
+      terminationGracePeriodSeconds: 30
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: *notificationLabels
+      containers:
+        - name: notification
+          image: tpsd-jetstream:dev-001
+          imagePullPolicy: Never
+          args: ["consumer_notification.py"]
+          envFrom:
+            - configMapRef:
+                name: tpsd-config
+          readinessProbe:
+            exec:
+              command: ["python", "healthcheck.py", "nats"]
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rpc
+  namespace: tpsd
+  labels: &rpcLabels
+    app.kubernetes.io/name: rpc
+    app.kubernetes.io/part-of: tpsd
+spec:
+  replicas: 1
+  selector:
+    matchLabels: *rpcLabels
+  template:
+    metadata:
+      labels: *rpcLabels
+    spec:
+      nodeSelector:
+        tpsd.local/worker: "true"
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: rpc
+          image: tpsd-jetstream:dev-001
+          imagePullPolicy: Never
+          args: ["rpc_server.py"]
+          envFrom:
+            - configMapRef:
+                name: tpsd-config
+          readinessProbe:
+            exec:
+              command: ["python", "healthcheck.py", "nats"]
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: tpsd
+  labels: &dashboardLabels
+    app.kubernetes.io/name: dashboard
+    app.kubernetes.io/part-of: tpsd
+spec:
+  replicas: 1
+  selector:
+    matchLabels: *dashboardLabels
+  template:
+    metadata:
+      labels: *dashboardLabels
+    spec:
+      nodeSelector:
+        tpsd.local/worker: "true"
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: dashboard
+          image: tpsd-jetstream:dev-001
+          imagePullPolicy: Never
+          args:
+            - -m
+            - gunicorn
+            - --bind
+            - 0.0.0.0:5000
+            - --workers
+            - "1"
+            - --threads
+            - "8"
+            - --timeout
+            - "120"
+            - dashboard:app
+          envFrom:
+            - configMapRef:
+                name: tpsd-config
+          env:
+            - name: FLASK_DEBUG
+              value: "0"
+            - name: DASHBOARD_MAX_PRODUCERS
+              value: "2"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+          ports:
+            - name: http
+              containerPort: 5000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: tpsd
+  labels:
+    app.kubernetes.io/name: dashboard
+    app.kubernetes.io/part-of: tpsd
+spec:
+  selector:
+    app.kubernetes.io/name: dashboard
+    app.kubernetes.io/part-of: tpsd
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http

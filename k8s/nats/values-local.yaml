@@ -1,0 +1,45 @@
+config:
+  cluster:
+    enabled: true
+    replicas: 3
+  jetstream:
+    enabled: true
+    fileStore:
+      enabled: true
+      pvc:
+        enabled: true
+        size: 2Gi
+        storageClassName: standard
+      maxSize: 1500Mi
+    memoryStore:
+      enabled: true
+      maxSize: 256Mi
+  monitor:
+    enabled: true
+
+nats:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+podTemplate:
+  topologySpreadConstraints:
+    kubernetes.io/hostname:
+      maxSkew: 1
+      whenUnsatisfiable: DoNotSchedule
+  merge:
+    spec:
+      nodeSelector:
+        tpsd.local/worker: "true"
+
+natsBox:
+  enabled: true
+
+service:
+  ports:
+    monitor:
+      enabled: true

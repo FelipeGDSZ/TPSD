@@ -1,4 +1,4 @@
-"""Dashboard local de monitoramento do NATS Core."""
+"""Dashboard de monitoramento para NATS Core ou JetStream."""
 
 import asyncio
 import json
@@ -14,8 +14,11 @@ import producer
 app = Flask(__name__)
 
 NATS_MONITOR_URL = os.getenv("NATS_MONITOR_URL", "http://localhost:8222").rstrip("/")
-NATS_API_VARZ = f"{NATS_MONITOR_URL}/varz"
-NATS_API_CONNZ = f"{NATS_MONITOR_URL}/connz"
+NATS_MONITOR_URLS = [
+    url.strip().rstrip("/")
+    for url in os.getenv("NATS_MONITOR_URLS", NATS_MONITOR_URL).split(",")
+    if url.strip()
+]
 
 ultimo_estado = {
     "in_msgs": None,
@@ -36,27 +39,43 @@ def index():
 @app.route("/healthz")
 def healthz():
     """Confirma que o dashboard consegue consultar o servidor NATS."""
-    try:
-        response = requests.get(f"{NATS_MONITOR_URL}/healthz", timeout=2)
-        response.raise_for_status()
-        return jsonify({"status": "ok"})
-    except requests.RequestException as error:
-        return jsonify({"status": "error", "detail": str(error)}), 503
+    errors = []
+    for monitor_url in NATS_MONITOR_URLS:
+        try:
+            response = requests.get(f"{monitor_url}/healthz", timeout=2)
+            response.raise_for_status()
+            return jsonify({"status": "ok", "nats": monitor_url})
+        except requests.RequestException as error:
+            errors.append(str(error))
+    return jsonify({"status": "error", "detail": "; ".join(errors)}), 503
 
 
 def buscar_metricas() -> dict:
     try:
-        res_varz = requests.get(NATS_API_VARZ, timeout=2)
-        res_varz.raise_for_status()
-        varz = res_varz.json()
+        varz_documents = []
+        connections = []
+        errors = []
+        for monitor_url in NATS_MONITOR_URLS:
+            try:
+                res_varz = requests.get(f"{monitor_url}/varz", timeout=2)
+                res_varz.raise_for_status()
+                varz_documents.append(res_varz.json())
 
-        res_connz = requests.get(f"{NATS_API_CONNZ}?subs=true", timeout=2)
-        res_connz.raise_for_status()
-        connz = res_connz.json()
+                res_connz = requests.get(
+                    f"{monitor_url}/connz?subs=true",
+                    timeout=2,
+                )
+                res_connz.raise_for_status()
+                connections.extend(res_connz.json().get("connections", []))
+            except requests.RequestException as error:
+                errors.append(f"{monitor_url}: {error}")
+
+        if not varz_documents:
+            raise ConnectionError("; ".join(errors) or "nenhum monitor NATS respondeu")
 
         agora = time.time()
-        in_msgs_atual = varz.get("in_msgs", 0)
-        out_msgs_atual = varz.get("out_msgs", 0)
+        in_msgs_atual = sum(item.get("in_msgs", 0) for item in varz_documents)
+        out_msgs_atual = sum(item.get("out_msgs", 0) for item in varz_documents)
 
         with estado_lock:
             estado_anterior = ultimo_estado.copy()
@@ -98,8 +117,17 @@ def buscar_metricas() -> dict:
             "order.stock.*": "orders.stock",
             "order.notify.*": "orders.notification",
         }
+        connection_to_queue = {
+            "pagamento": "orders.payment",
+            "estoque": "orders.stock",
+            "notificacao": "orders.notification",
+        }
 
-        for connection in connz.get("connections", []):
+        for connection in connections:
+            queue_by_name = connection_to_queue.get(connection.get("name"))
+            if queue_by_name:
+                consumers[queue_by_name] += 1
+                continue
             subscriptions = connection.get("subscriptions_list", [])
             for subject, queue_name in subject_to_queue.items():
                 if subject in subscriptions:
@@ -115,6 +143,19 @@ def buscar_metricas() -> dict:
             for queue_name, consumer_count in consumers.items()
         }
 
+        if os.getenv("NATS_MODE", "core").lower() == "jetstream":
+            for monitor_url in NATS_MONITOR_URLS:
+                try:
+                    response = requests.get(
+                        f"{monitor_url}/jsz?streams=true&consumers=true",
+                        timeout=2,
+                    )
+                    response.raise_for_status()
+                    apply_jetstream_metrics(queues, response.json())
+                    break
+                except requests.RequestException:
+                    continue
+
         return {
             "status": "ok",
             "publish_rate": publish_rate,
@@ -123,6 +164,33 @@ def buscar_metricas() -> dict:
         }
     except Exception as error:
         return {"error": str(error)}
+
+
+def apply_jetstream_metrics(queues: dict, jsz: dict) -> None:
+    """Adiciona backlog e redelivery dos durables do stream ORDERS."""
+    durable_to_queue = {
+        "orders-payment": "orders.payment",
+        "orders-stock": "orders.stock",
+        "orders-notification": "orders.notification",
+    }
+    for account in jsz.get("account_details", []):
+        for stream in account.get("stream_detail", []):
+            if stream.get("name") != os.getenv("JETSTREAM_STREAM", "ORDERS"):
+                continue
+            for consumer in stream.get("consumer_detail", []):
+                queue_name = durable_to_queue.get(consumer.get("name"))
+                if not queue_name:
+                    continue
+                pending = consumer.get("num_pending", 0)
+                ack_pending = consumer.get("num_ack_pending", 0)
+                queues[queue_name].update(
+                    {
+                        "messages": pending + ack_pending,
+                        "pending": pending,
+                        "ack_pending": ack_pending,
+                        "redelivered": consumer.get("num_redelivered", 0),
+                    }
+                )
 
 
 @app.route("/stream")

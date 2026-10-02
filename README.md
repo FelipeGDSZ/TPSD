@@ -2,6 +2,9 @@
 
 Guia de execução e testes do projeto.
 
+Para a evolução local com Kubernetes, cluster NATS e JetStream, consulte
+[`KUBERNETES.md`](KUBERNETES.md).
+
 ## Pré-requisitos
 
 ```bash

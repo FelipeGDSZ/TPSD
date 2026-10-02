@@ -1,5 +1,6 @@
 .git
 .vscode
+.tools
 __pycache__
 *.py[cod]
 venv
@@ -8,5 +9,8 @@ benchmark_results.json
 benchmark_plot_nats.png
 .env
 deploy/.env
+deploy
+docs
+k8s
 ROTEIRO.md
 README.md

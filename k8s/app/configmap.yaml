@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tpsd-config
+  namespace: tpsd
+  labels:
+    app.kubernetes.io/part-of: tpsd
+data:
+  NATS_URL: nats://nats.tpsd.svc.cluster.local:4222
+  NATS_MONITOR_URL: http://nats.tpsd.svc.cluster.local:8222
+  NATS_MONITOR_URLS: http://nats-0.nats-headless.tpsd.svc.cluster.local:8222,http://nats-1.nats-headless.tpsd.svc.cluster.local:8222,http://nats-2.nats-headless.tpsd.svc.cluster.local:8222
+  NATS_MODE: jetstream
+  JETSTREAM_STREAM: ORDERS
+  JETSTREAM_FETCH_BATCH: "10"
+  JETSTREAM_FETCH_TIMEOUT: "1"
+  JETSTREAM_ACK_WAIT: "30"
+  JETSTREAM_MAX_DELIVER: "5"
+  JETSTREAM_MAX_ACK_PENDING: "1000"
+  PROCESS_LOG_EVERY: "100"

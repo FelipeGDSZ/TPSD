@@ -1,6 +1,8 @@
 """Utilitários compartilhados para conexões resilientes com o NATS Core."""
 
 import asyncio
+import re
+import unicodedata
 from typing import Optional
 
 from nats.aio.client import Client as NATS
@@ -33,8 +35,13 @@ async def connect_nats(
         if closed_event is not None:
             closed_event.set()
 
+    normalized_name = unicodedata.normalize("NFKD", service_name)
+    normalized_name = normalized_name.encode("ascii", "ignore").decode("ascii")
+    connection_name = re.sub(r"[^a-z0-9]+", "-", normalized_name.lower()).strip("-")
+
     await nc.connect(
         servers=[url],
+        name=connection_name,
         max_reconnect_attempts=60,
         reconnect_time_wait=2,
         error_cb=error_cb,

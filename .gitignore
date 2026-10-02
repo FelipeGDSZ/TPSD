@@ -14,3 +14,6 @@ __pycache__/
 # Resultados de benchmark repetitivos (opcional, mas recomendado)
 benchmark_results.json
 benchmark_plot_nats.png
+
+# Ferramentas locais do laboratorio Kubernetes
+.tools/

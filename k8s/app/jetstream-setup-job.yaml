@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jetstream-setup
+  namespace: tpsd
+  labels:
+    app.kubernetes.io/name: jetstream-setup
+    app.kubernetes.io/part-of: tpsd
+spec:
+  backoffLimit: 4
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jetstream-setup
+        app.kubernetes.io/part-of: tpsd
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        tpsd.local/worker: "true"
+      containers:
+        - name: setup
+          image: tpsd-jetstream:dev-001
+          imagePullPolicy: Never
+          command: ["python", "jetstream_setup.py"]
+          env:
+            - name: NATS_URL
+              value: nats://nats.tpsd.svc.cluster.local:4222
+            - name: JETSTREAM_STREAM
+              value: ORDERS
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
